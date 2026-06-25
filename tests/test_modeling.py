@@ -16,12 +16,16 @@ from pipeline.modeling.hole_feature_builder import (
     zone_features,
 )
 from pipeline.modeling.similarity import (
+    LENGTH_AWARE_WEIGHTS,
+    SIMILARITY_MODES,
     build_feature_matrix,
     cluster_kmeans,
     feature_columns,
     feature_summary,
     nearest_neighbor_table,
+    resolve_mode,
     similar_holes,
+    similar_holes_mode,
 )
 
 
@@ -292,3 +296,101 @@ def test_nearest_neighbor_table_same_par():
     q_par = t["query_hole_id"].map(par_of)
     s_par = t["similar_hole_id"].map(par_of)
     assert (q_par.to_numpy() == s_par.to_numpy()).all()
+
+
+# ---------------------------------------------------------------------------
+# v2: length guard + feature weighting + modes
+# ---------------------------------------------------------------------------
+
+
+def _length_df(specs):
+    """specs: list of (hole_id, course_slug, hole_number, par, length_m, shape)."""
+    return pd.DataFrame([
+        {"hole_id": h, "course_slug": sl, "course_name": sl.upper(),
+         "hole_number": n, "par": p, "hole_length_m": L, "feat_s": s}
+        for (h, sl, n, p, L, s) in specs
+    ])
+
+
+def test_length_guard_filters_far_candidates():
+    df = _length_df([("q", "a", 1, 4, 400, 0.0), ("near", "a", 2, 4, 390, 0.0),
+                     ("far", "a", 3, 4, 300, 0.0), ("near2", "a", 4, 4, 410, 0.0)])
+    cols = feature_columns(df)
+    X, *_ = build_feature_matrix(df, cols)
+    ids = set(similar_holes(df, X, "q", k=5, max_length_diff_m=35)["similar_hole_id"])
+    assert "far" not in ids                  # 100 m gap > 35 m
+    assert {"near", "near2"} <= ids          # 10 m gaps allowed
+
+
+def test_length_guard_m_and_pct_combine():
+    # allowed = max(35, 400*0.12=48) = 48
+    df = _length_df([("q", "a", 1, 4, 400, 0.0), ("c45", "a", 2, 4, 355, 0.0),
+                     ("c50", "a", 3, 4, 350, 0.0), ("c10", "a", 4, 4, 390, 0.0)])
+    cols = feature_columns(df)
+    X, *_ = build_feature_matrix(df, cols)
+    ids = set(similar_holes(df, X, "q", k=5,
+                            max_length_diff_m=35, max_length_diff_pct=0.12)["similar_hole_id"])
+    assert "c50" not in ids                  # 50 m > 48 m allowed
+    assert {"c45", "c10"} <= ids             # 45 m, 10 m allowed
+
+
+def test_filters_combine_with_length_guard():
+    df = _length_df([("q", "a", 1, 4, 400, 0.0),
+                     ("a_same", "a", 2, 4, 395, 0.0),   # same course -> excluded
+                     ("b_ok", "b", 1, 4, 395, 0.0),     # cross, par 4, len ok
+                     ("b_par5", "b", 2, 5, 398, 0.0),   # wrong par
+                     ("b_long", "b", 3, 4, 300, 0.0)])  # length too far
+    cols = feature_columns(df)
+    X, *_ = build_feature_matrix(df, cols)
+    ids = set(similar_holes(df, X, "q", k=5, exclude_same_course=True, same_par=True,
+                            max_length_diff_m=35, max_length_diff_pct=0.12)["similar_hole_id"])
+    assert ids == {"b_ok"}
+
+
+def test_feature_weighting_changes_ranking():
+    # q vs: b (same shape, shorter) and c (same length, different shape).
+    df = _length_df([("q", "a", 1, 4, 400, 0.0), ("b", "a", 2, 4, 360, 0.0),
+                     ("c", "a", 3, 4, 400, 2.5), ("f1", "a", 4, 4, 400, 5.0),
+                     ("f2", "a", 5, 4, 500, 0.0)])
+    cols = feature_columns(df)
+    Xu, *_ = build_feature_matrix(df, cols)                     # unweighted
+    Xw, *_ = build_feature_matrix(df, cols, feature_weights={"hole_length_m": 4.0})
+    near_u = similar_holes(df, Xu, "q", k=1).iloc[0]["similar_hole_id"]
+    near_w = similar_holes(df, Xw, "q", k=1).iloc[0]["similar_hole_id"]
+    assert near_u == "b"   # unweighted: closer in shape wins
+    assert near_w == "c"   # length-weighted: closer in length wins
+
+
+def test_hole_length_yd_not_double_counted():
+    lengths = [300.0, 360.0, 420.0, 480.0]
+    df = pd.DataFrame({
+        "hole_id": [f"a__{i:02d}" for i in range(1, 5)],
+        "course_slug": ["a"] * 4, "course_name": ["A"] * 4,
+        "hole_number": [1, 2, 3, 4], "par": [4] * 4,
+        "hole_length_m": lengths,
+        "hole_length_yd": [round(v * 1.09361, 2) for v in lengths],
+        "feat_s": [0.0, 1.0, 2.0, 3.0],
+    })
+    cols = feature_columns(df)
+    assert "hole_length_yd" in cols and "hole_length_m" in cols
+    Xw, *_ = build_feature_matrix(df, cols, feature_weights=LENGTH_AWARE_WEIGHTS)
+    j_yd = cols.index("hole_length_yd")
+    j_m = cols.index("hole_length_m")
+    assert np.allclose(Xw[:, j_yd], 0.0)        # yd weight 0 -> no length double-count
+    assert not np.allclose(Xw[:, j_m], 0.0)     # metres still drive length
+
+
+def test_mode_v1_matches_defaults_and_v2_filters():
+    assert resolve_mode("v1")["feature_weights"] is None
+    cfg = SIMILARITY_MODES["cross_course_same_par_length_guarded"]
+    assert cfg["exclude_same_course"] and cfg["same_par"]
+    assert cfg["max_length_diff_m"] == 35.0 and cfg["max_length_diff_pct"] == 0.12
+
+    df = _length_df([("q", "a", 1, 4, 400, 0.0),
+                     ("a_same", "a", 2, 4, 398, 0.0),
+                     ("b_ok", "b", 1, 4, 396, 0.1),
+                     ("b_far", "b", 2, 4, 300, 0.0)])
+    cols = feature_columns(df)
+    top = similar_holes_mode(df, cols, "q", "cross_course_same_par_length_guarded", k=5)
+    ids = set(top["similar_hole_id"])
+    assert ids == {"b_ok"}  # cross-course, same par, within length guard

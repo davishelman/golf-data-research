@@ -88,6 +88,14 @@ class IndexPaths:
     def hole_similarity_examples_csv(self) -> Path:
         return self.root / "hole_similarity_examples.csv"
 
+    @property
+    def hole_similarity_v2_csv(self) -> Path:
+        return self.root / "hole_similarity_v2.csv"
+
+    @property
+    def visual_checks(self) -> Path:
+        return self.root / "visual_checks"
+
 
 # Legacy constant kept for backward compatibility with older callers.
 ALL_HOLES_CSV: Path = IndexPaths.for_root().all_holes_csv

@@ -1,8 +1,10 @@
 """Run clustering + nearest-neighbor search over hole features and write outputs.
 
 Produces:
-  courses/_index/hole_clusters.parquet / .csv   (ids + cluster labels + 2D embeddings)
-  courses/_index/hole_similarity_examples.csv    (top-K similar holes per hole)
+  courses/_index/hole_clusters.parquet / .csv     (ids + cluster labels + 2D embeddings)
+  courses/_index/hole_similarity_examples.csv      (v1: top-K similar holes per hole)
+  courses/_index/hole_similarity_v2.csv            (v2: length-aware, cross-course,
+                                                    same-par, length-guarded)
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from .similarity import (
     cluster_kmeans,
     feature_columns,
     nearest_neighbor_table,
+    resolve_mode,
     run_pca,
     run_umap,
 )
@@ -27,6 +30,8 @@ log = get_logger("modeling.export")
 
 _CLUSTER_ID_COLS = ("hole_id", "course_slug", "course_name", "hole_number",
                     "par", "hole_length_m")
+
+V2_MODE = "cross_course_same_par_length_guarded"
 
 
 def build_hole_similarity(
@@ -76,15 +81,51 @@ def build_hole_similarity(
     clusters.to_parquet(index.hole_clusters_parquet, index=False)
     clusters.to_csv(index.hole_clusters_csv, index=False)
 
+    # v1 similarity examples (unweighted, no filters) — preserved exactly.
     examples = nearest_neighbor_table(df, X, k=n_neighbors)
     examples.to_csv(index.hole_similarity_examples_csv, index=False)
+
+    # v2 similarity examples (length-aware, cross-course, same-par, length-guarded).
+    v2 = _build_v2_table(df, cols, n_neighbors)
+    v2.to_csv(index.hole_similarity_v2_csv, index=False)
 
     written = {
         "hole_clusters_parquet": str(index.hole_clusters_parquet),
         "hole_clusters_csv": str(index.hole_clusters_csv),
         "hole_similarity_examples_csv": str(index.hole_similarity_examples_csv),
+        "hole_similarity_v2_csv": str(index.hole_similarity_v2_csv),
     }
     log.info("similarity outputs written: %s", list(written))
-    log.info("clusters: kmeans=%d agg=%d | similarity rows=%d",
-             len(set(kmeans)), len(set(agg)), len(examples))
+    log.info("clusters: kmeans=%d agg=%d | v1 rows=%d | v2 rows=%d",
+             len(set(kmeans)), len(set(agg)), len(examples), len(v2))
     return written
+
+
+def _build_v2_table(df: pd.DataFrame, cols: list[str], n_neighbors: int) -> pd.DataFrame:
+    """Length-aware v2 neighbor table with length-diff and provenance columns."""
+    cfg = resolve_mode(V2_MODE)
+    Xw, _, _ = build_feature_matrix(df, cols, feature_weights=cfg["feature_weights"])
+    table = nearest_neighbor_table(
+        df, Xw, k=n_neighbors,
+        exclude_same_course=cfg["exclude_same_course"], same_par=cfg["same_par"],
+        max_length_diff_m=cfg["max_length_diff_m"],
+        max_length_diff_pct=cfg["max_length_diff_pct"],
+    )
+    len_of = df.set_index("hole_id")["hole_length_m"]
+    if table.empty:
+        return pd.DataFrame(columns=[
+            "query_hole_id", "similar_hole_id", "rank", "distance",
+            "query_length_m", "similar_length_m", "length_diff_m",
+            "same_par", "same_course", "similarity_mode",
+        ])
+    table["query_length_m"] = table["query_hole_id"].map(len_of).round(2)
+    table["similar_length_m"] = table["similar_hole_id"].map(len_of).round(2)
+    table["length_diff_m"] = (table["query_length_m"] - table["similar_length_m"]).abs().round(2)
+    table["same_par"] = bool(cfg["same_par"])
+    table["same_course"] = table["query_course_slug"] == table["similar_course_slug"]
+    table["similarity_mode"] = V2_MODE
+    return table[[
+        "query_hole_id", "similar_hole_id", "rank", "distance",
+        "query_length_m", "similar_length_m", "length_diff_m",
+        "same_par", "same_course", "similarity_mode",
+    ]]

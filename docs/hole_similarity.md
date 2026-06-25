@@ -44,11 +44,16 @@ Then open `notebooks/hole_similarity_research.ipynb`.
 |---|---|
 | `hole_features.parquet` / `.csv` | one feature row per hole (540 × ~90) |
 | `hole_clusters.parquet` / `.csv` | ids + `kmeans_cluster`, `agg_cluster`, `pca_1/2` (+ `umap_1/2` if UMAP installed) |
-| `hole_similarity_examples.csv` | top-K nearest holes per hole (long format) |
+| `hole_similarity_examples.csv` | **v1** top-K nearest holes per hole (unweighted, no filters) |
+| `hole_similarity_v2.csv` | **v2** length-aware top-K (cross-course, same-par, length-guarded) |
 
-`hole_similarity_examples.csv` columns: `query_hole_id, query_course_slug,
+`hole_similarity_examples.csv` (v1) columns: `query_hole_id, query_course_slug,
 query_hole_number, similar_hole_id, similar_course_slug, similar_hole_number,
 distance, rank`.
+
+`hole_similarity_v2.csv` columns: `query_hole_id, similar_hole_id, rank, distance,
+query_length_m, similar_length_m, length_diff_m, same_par, same_course,
+similarity_mode`. v1 is preserved unchanged; v2 is an additional file.
 
 ## Coordinate frame
 
@@ -132,11 +137,53 @@ the hazard's share of the zone.
    so they are never scaled or modeled.
 4. `run_pca` (2D for plots / N-D optional), `run_umap` (optional).
 5. `cluster_kmeans`, `cluster_agglomerative` (default k=8).
-6. `nearest_neighbor_table(df, X, k, exclude_same_course=False, same_par=False)`
-   and `similar_holes(df, X, hole_id, k, exclude_same_course=False, same_par=False)`
-   — `NearestNeighbors` (Euclidean) over the scaled matrix; exclude self, and
-   optionally exclude same-course holes (`exclude_same_course`) and/or restrict to
-   the query's par (`same_par`); filters combine; ranked 1..K.
+6. `nearest_neighbor_table(df, X, k, exclude_same_course=False, same_par=False,
+   max_length_diff_m=None, max_length_diff_pct=None)` and the single-hole
+   `similar_holes(...)` — `NearestNeighbors` (Euclidean) over the scaled matrix;
+   exclude self, and optionally exclude same-course holes, restrict to the query's
+   par, and/or apply a **length guard** (drop candidates whose `hole_length_m`
+   differs from the query by more than `max(max_length_diff_m,
+   query_len * max_length_diff_pct)`). All filters combine; ranked 1..K.
+7. Modes: `similar_holes_mode(df, cols, hole_id, mode)` /
+   `nearest_neighbor_table_mode(df, cols, mode)` build a (weighted) matrix and
+   apply a named mode from `SIMILARITY_MODES` in one call.
+
+## v1 vs v2 similarity
+
+**v1 (unrestricted).** Standardize all features, then take unweighted Euclidean
+nearest neighbors. `hole_length_m` is just one feature among ~86, so strategic
+shape, hazards, and elevation can outvote a large length gap — a ~400 m hole can
+rank a ~300 m hole highly. v1 is preserved as the default of every function and as
+`hole_similarity_examples.csv`.
+
+**Why length matters more than a single standardized feature implies.** Two holes
+that play alike are first of all *the same kind of shot sequence*, which is
+dominated by length (driver-wedge vs driver-mid-iron vs three-shot). A 100 m
+difference changes the whole strategy even if hazards look similar, so length
+deserves more weight than one standardized column.
+
+**v2 (length-aware).** Two mechanisms, both off by default:
+- **Feature weighting** (`build_feature_matrix(df, cols, feature_weights=...)`):
+  weights multiply standardized columns *after* scaling. `LENGTH_AWARE_WEIGHTS`
+  up-weights `hole_length_m`, `green_y_m`, `hole_depth_m`, `par`, fairway widths,
+  and elevation change; `hole_length_yd` is weighted **0** so length isn't
+  double-counted (both metres and yards are present as features).
+- **Length guard** (the `max_length_diff_*` params above): a hard filter so the
+  main mode never returns a hole far off in length.
+
+**Named modes** (`SIMILARITY_MODES`): `v1` (defaults), `length_weighted` (weights,
+no hard filter), `same_par_length_guarded`, and
+`cross_course_same_par_length_guarded` (the v2 export mode).
+
+### Recommended presentation defaults
+
+```python
+similar_holes(df, X, hole_id,
+              same_par=True, exclude_same_course=True,
+              max_length_diff_m=35, max_length_diff_pct=0.12)   # with length-weighted X
+# equivalently:
+similar_holes_mode(df, cols, hole_id, mode="cross_course_same_par_length_guarded")
+```
 
 ## Using the notebook
 
@@ -158,8 +205,48 @@ jupyter notebook notebooks/hole_similarity_research.ipynb
 python -m nbconvert --to notebook --execute --inplace notebooks/hole_similarity_research.ipynb
 ```
 
+## Visual validation
+
+Numbers can say two holes are close while they look nothing alike, so
+`pipeline/modeling/visual_compare.py` plots holes side by side in the same
+tee-relative aligned frame (tee at origin, green upward, **shared x/y scale**) to
+sanity-check the model.
+
+```python
+from pipeline.modeling.visual_compare import plot_hole_comparison, save_hole_comparison
+plot_hole_comparison("courses", ["augusta_national__01", "tpc_deere_run__13"], color_by="label")
+```
+
+Or from the CLI (saves a PNG under `courses/_index/visual_checks/`):
+
+```powershell
+python -m pipeline.modeling visual-check --hole-id augusta_national__01 --same-par --exclude-same-course --n 4
+# colored by elevation instead of surface:
+python -m pipeline.modeling visual-check --hole-id augusta_national__01 --color-by elevation
+```
+
+**Why it matters:** it confirms the engineered features capture real shape/hazard
+similarity rather than spurious numeric closeness — the fastest way to catch a
+bad match. Only generate a couple of checks at a time (don't batch hundreds).
+
+**What the colors mean** (stable map; rough is intentionally subtle so hazards
+read clearly):
+
+| color | label | | color | label |
+|---|---|---|---|---|
+| dark green dot | tee | | gold | bunker |
+| medium green | green | | blue | water |
+| light green | fairway | | deep green | trees |
+| olive (faint) | rough_osm | | brown | cartpath |
+| pale grey-green (faint) | rough_inferred | | pale sand | sand |
+
+`color_by="elevation"` instead colors points by `z` relative to the tee.
+
 ## Known limitations (v1)
 
+- **Point-cloud visualization, not imagery** — the visual checks show *labeled
+  surfaces* (what the model sees), not satellite/turf imagery; a feature missing
+  from OSM is missing from the plot.
 - **Background dominance** — points span the wide hole corridor, so `rough_pct`
   reflects background area (not penal rough) and can wash out subtle differences.
 - **Same-course bias** — holes from one course share style, terrain, and OSM

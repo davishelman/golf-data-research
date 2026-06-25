@@ -4,12 +4,13 @@ Usage:
     python -m pipeline.modeling features      # build hole_features.parquet/csv
     python -m pipeline.modeling similarity    # build clusters + similarity examples
     python -m pipeline.modeling all           # both, in order
+    python -m pipeline.modeling visual-check --hole-id augusta_national__01 \
+        --same-par --exclude-same-course --n 4   # save a side-by-side comparison PNG
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 
 from ..logging_config import configure_logging, get_logger
 from ..paths import COURSES_ROOT
@@ -20,9 +21,9 @@ log = get_logger("modeling.cli")
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="pipeline.modeling",
-        description="Build hole feature rows and find similar golf holes.",
+        description="Build hole feature rows, find similar golf holes, and visually compare them.",
     )
-    p.add_argument("command", choices=["features", "similarity", "all"],
+    p.add_argument("command", choices=["features", "similarity", "all", "visual-check"],
                    help="Which step to run.")
     p.add_argument("--courses-root", type=type(COURSES_ROOT), default=COURSES_ROOT,
                    help=f"Root of course outputs (default: {COURSES_ROOT}).")
@@ -32,8 +33,57 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--pca-components", type=int, default=10,
                    help="PCA components to validate/fit (default 10).")
     p.add_argument("--no-umap", action="store_true", help="Skip UMAP embedding.")
+    # visual-check options
+    p.add_argument("--hole-id", help="Query hole id for visual-check, e.g. augusta_national__01.")
+    p.add_argument("--n", type=int, default=3, help="Number of neighbors to plot (visual-check).")
+    p.add_argument("--same-par", action="store_true", help="Restrict neighbors to the query's par.")
+    p.add_argument("--exclude-same-course", action="store_true",
+                   help="Exclude neighbors from the query's course.")
+    p.add_argument("--color-by", choices=["label", "elevation"], default="label",
+                   help="Color points by surface label or by elevation (visual-check).")
+    p.add_argument("--max-points", type=int, default=40_000,
+                   help="Max points plotted per hole (visual-check).")
+    p.add_argument("--output", default=None, help="Output PNG path (visual-check).")
     p.add_argument("--log-level", default=None, help="DEBUG/INFO/WARNING/ERROR.")
     return p
+
+
+def _run_visual_check(args) -> int:
+    import pandas as pd
+
+    from ..paths import IndexPaths
+    from .similarity import build_feature_matrix, feature_columns, similar_holes
+    from .visual_compare import save_hole_comparison
+
+    if not args.hole_id:
+        log.error("visual-check requires --hole-id")
+        return 1
+
+    index = IndexPaths.for_root(args.courses_root)
+    if not index.hole_features_parquet.exists():
+        log.error("%s not found. Run: python -m pipeline.modeling features", index.hole_features_parquet)
+        return 1
+
+    feat = pd.read_parquet(index.hole_features_parquet)
+    X, _, _ = build_feature_matrix(feat, feature_columns(feat))
+    neighbors = similar_holes(feat, X, args.hole_id, k=args.n,
+                              exclude_same_course=args.exclude_same_course,
+                              same_par=args.same_par)
+    hole_ids = [args.hole_id] + list(neighbors["similar_hole_id"])
+    titles = [f"{h}\n(query)" if h == args.hole_id else h for h in hole_ids]
+
+    if args.output:
+        out = args.output
+    else:
+        suffix = "_".join(
+            ["same_par"] * args.same_par + ["cross_course"] * args.exclude_same_course
+        ) or "nearest"
+        out = index.visual_checks / f"{args.hole_id}_{suffix}.png"
+
+    path = save_hole_comparison(args.courses_root, hole_ids, out, titles=titles,
+                                color_by=args.color_by, max_points=args.max_points)
+    log.info("visual-check -> %s", path)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -56,7 +106,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             for k, v in written.items():
                 log.info("%s -> %s", k, v)
-    except (ImportError, FileNotFoundError, ValueError, RuntimeError) as exc:
+        if args.command == "visual-check":
+            return _run_visual_check(args)
+    except (ImportError, FileNotFoundError, ValueError, RuntimeError, KeyError) as exc:
         log.error("%s", exc)
         return 1
     return 0
