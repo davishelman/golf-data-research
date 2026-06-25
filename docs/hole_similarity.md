@@ -132,10 +132,11 @@ the hazard's share of the zone.
    so they are never scaled or modeled.
 4. `run_pca` (2D for plots / N-D optional), `run_umap` (optional).
 5. `cluster_kmeans`, `cluster_agglomerative` (default k=8).
-6. `nearest_neighbor_table(df, X, k, exclude_same_course=False)` and
-   `similar_holes(df, X, hole_id, k, exclude_same_course=False)` —
-   `NearestNeighbors` (Euclidean) over the scaled matrix; exclude self, and
-   optionally exclude same-course holes for cross-course discovery; ranked 1..K.
+6. `nearest_neighbor_table(df, X, k, exclude_same_course=False, same_par=False)`
+   and `similar_holes(df, X, hole_id, k, exclude_same_course=False, same_par=False)`
+   — `NearestNeighbors` (Euclidean) over the scaled matrix; exclude self, and
+   optionally exclude same-course holes (`exclude_same_course`) and/or restrict to
+   the query's par (`same_par`); filters combine; ranked 1..K.
 
 ## Using the notebook
 
@@ -144,8 +145,8 @@ the three artifacts, validates them (missing values, PCA explained variance),
 profiles + names the clusters, plots PCA/cluster/hazard charts, and provides:
 
 ```python
-show_similar(hole_id, n=10, exclude_same_course=False)   # nearest holes (live)
-compare_holes(query_hole_id, match_hole_id)              # transposed feature diff
+show_similar(hole_id, n=10, exclude_same_course=False, same_par=False)  # nearest holes (live)
+compare_holes(query_hole_id, match_hole_id)                             # transposed feature diff
 ```
 
 Run (needs `matplotlib`):
