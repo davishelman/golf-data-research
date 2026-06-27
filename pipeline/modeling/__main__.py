@@ -6,6 +6,9 @@ Usage:
     python -m pipeline.modeling all           # both, in order
     python -m pipeline.modeling visual-check --hole-id augusta_national__01 \
         --same-par --exclude-same-course --n 4   # save a side-by-side comparison PNG
+    python -m pipeline.modeling hf-export --tier lite --output hf_artifact_lite
+    python -m pipeline.modeling hf-export --tier full --output hf_artifact_full \
+        --include-point-parquet      # build a Hugging Face upload folder
 """
 
 from __future__ import annotations
@@ -23,8 +26,16 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="pipeline.modeling",
         description="Build hole feature rows, find similar golf holes, and visually compare them.",
     )
-    p.add_argument("command", choices=["features", "similarity", "all", "visual-check"],
+    p.add_argument("command",
+                   choices=["features", "similarity", "all", "visual-check", "hf-export"],
                    help="Which step to run.")
+    # hf-export options
+    p.add_argument("--tier", choices=["lite", "full"], default="lite",
+                   help="Hugging Face artifact tier (hf-export; default lite).")
+    p.add_argument("--include-point-parquet", action="store_true",
+                   help="hf-export full tier: also copy per-hole point Parquet files.")
+    p.add_argument("--include-all-points", action="store_true",
+                   help="hf-export full tier: also copy the ~1 GB all_hole_points.parquet.")
     p.add_argument("--courses-root", type=type(COURSES_ROOT), default=COURSES_ROOT,
                    help=f"Root of course outputs (default: {COURSES_ROOT}).")
     p.add_argument("--clusters", type=int, default=8, help="Number of clusters (default 8).")
@@ -106,6 +117,16 @@ def main(argv: list[str] | None = None) -> int:
             )
             for k, v in written.items():
                 log.info("%s -> %s", k, v)
+        if args.command == "hf-export":
+            from .hf_export import build_hf_artifact
+            summary = build_hf_artifact(
+                args.tier, args.output, courses_root=args.courses_root,
+                include_point_parquet=args.include_point_parquet,
+                include_all_points=args.include_all_points,
+            )
+            log.info("hf-export (%s) -> %s | %s across %d files",
+                     summary["tier"], summary["output_dir"],
+                     summary["total_human"], summary["total_files"])
         if args.command == "visual-check":
             return _run_visual_check(args)
     except (ImportError, FileNotFoundError, ValueError, RuntimeError, KeyError) as exc:

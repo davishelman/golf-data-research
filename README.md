@@ -159,11 +159,33 @@ Outputs land in `courses/_index/`: `hole_features.parquet/csv`,
 `notebooks/hole_similarity_research.ipynb`. Full reference + feature formulas:
 [`docs/hole_similarity.md`](docs/hole_similarity.md).
 
+## Data distribution (Hugging Face)
+
+The generated data is large (~54.7M labeled points; `all_hole_points.parquet`
+alone is ~1 GB), so `courses/` and `*.parquet`/`*.duckdb` are **git-ignored**.
+GitHub holds the code, docs, notebook, and tests; the data product is published
+as a **Hugging Face Dataset** (recommended repo:
+`davishelman/golf-data-research-artifacts`).
+
+Build a clean upload folder (nothing is uploaded; folders are git-ignored):
+
+```powershell
+python -m pipeline.modeling hf-export --tier lite --output hf_artifact_lite   # ~35 MB, quick review
+python -m pipeline.modeling hf-export --tier full --output hf_artifact_full   # full data product
+# equivalently: python scripts/build_hf_artifact.py --tier lite --output hf_artifact_lite
+```
+
+Each folder carries a dataset card (`README.md`), `dataset_manifest.json`,
+`metadata/` (schema, feature dictionary, label map, provenance), the aggregate
+tables, and per-hole compact point clouds. Build/upload/download steps and how to
+run the notebook against downloaded data:
+[`docs/huggingface_artifact.md`](docs/huggingface_artifact.md).
+
 ## Testing
 
 ```powershell
-python -m pytest tests/ -q                    # full suite (needs the geo stack)
-python -m pytest tests/test_modeling.py -q    # modeling only (light stack)
+python -m pytest tests/ -q                                      # full suite (needs the geo stack)
+python -m pytest tests/test_modeling.py tests/test_hf_export.py -q   # modeling + HF export (light stack)
 ```
 
 The suite is fully offline (synthetic course + synthetic raster; OSM and

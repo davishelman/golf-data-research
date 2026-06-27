@@ -55,6 +55,12 @@ distance, rank`.
 query_length_m, similar_length_m, length_diff_m, same_par, same_course,
 similarity_mode`. v1 is preserved unchanged; v2 is an additional file.
 
+> These artifacts (and the per-hole point clouds) are **not committed** to git —
+> they're distributed via a Hugging Face Dataset. Build an upload folder with
+> `python -m pipeline.modeling hf-export --tier {lite,full}`; see
+> [`docs/huggingface_artifact.md`](huggingface_artifact.md) for build/upload/
+> download steps and how to run this notebook against downloaded data.
+
 ## Coordinate frame
 
 From the pipeline's aligned point cloud:
