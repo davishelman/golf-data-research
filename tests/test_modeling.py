@@ -577,3 +577,75 @@ def test_build_similarity_modes_single_mode(tmp_path):
     assert (index.similarity_modes_dir / "hazard.csv").exists()
     # other modes were not written
     assert not (index.similarity_modes_dir / "terrain.csv").exists()
+
+
+# ---------------------------------------------------------------------------
+# Presented (golf-plausibility-filtered) similarity export
+# ---------------------------------------------------------------------------
+
+
+def _presented_features_df():
+    rows = []
+    for i, (slug, num) in enumerate(
+            [("a", 1), ("a", 2), ("a", 3), ("b", 1), ("b", 2), ("b", 3)]):
+        rows.append({
+            "hole_id": f"{slug}__{num:02d}", "course_slug": slug,
+            "course_name": slug.upper(), "hole_number": num, "par": 4,
+            "hole_length_m": 400.0 + i * 5, "water_pct": 0.0, "bunker_pct": 0.01,
+            "trees_pct": 0.10, "hole_width_m": 60.0, "hole_depth_m": 400.0,
+            "green_y_m": 400.0, "dogleg_score": 0.05, "fairway_centerline_shift": 0.0,
+        })
+    return pd.DataFrame(rows)
+
+
+def _raw_v2_table(df):
+    ids = list(df["hole_id"])
+    rows = []
+    for q in ids:
+        rank = 1
+        for c in ids:
+            if c == q:
+                continue
+            rows.append({"query_hole_id": q, "similar_hole_id": c,
+                         "rank": rank, "distance": 0.1 * rank})
+            rank += 1
+    return pd.DataFrame(rows)
+
+
+def test_build_presented_similarity_writes_overall_v2(tmp_path):
+    from pipeline.modeling.export_similarity import build_presented_similarity
+    from pipeline.paths import IndexPaths
+
+    courses_root = tmp_path / "courses"
+    index = IndexPaths.for_root(courses_root)
+    index.ensure()
+    df = _presented_features_df()
+    df.to_parquet(index.hole_features_parquet)
+    _raw_v2_table(df).to_csv(index.hole_similarity_v2_csv, index=False)
+
+    written = build_presented_similarity(courses_root, n_neighbors=5)
+    assert set(written) == {"overall_v2"}
+    out = index.presented_similarity_dir / "overall_v2.csv"
+    assert out.exists()
+
+    presented = pd.read_csv(out)
+    for col in ("plausibility_score", "is_presentable", "presented_rank",
+                "plausibility_reasons", "similar_course_slug"):
+        assert col in presented.columns
+    # defaults are golf-safe: same par + cross course
+    assert (presented["same_par"]).all()
+    assert (~presented["same_course"]).all()
+    # re-ranked 1..N per query
+    assert presented.groupby("query_hole_id")["presented_rank"].min().eq(1).all()
+
+
+def test_build_presented_similarity_missing_source_raises(tmp_path):
+    from pipeline.modeling.export_similarity import build_presented_similarity
+    from pipeline.paths import IndexPaths
+
+    courses_root = tmp_path / "courses"
+    index = IndexPaths.for_root(courses_root)
+    index.ensure()
+    _presented_features_df().to_parquet(index.hole_features_parquet)  # no v2 csv
+    with pytest.raises(FileNotFoundError, match="hole_similarity_v2"):
+        build_presented_similarity(courses_root)

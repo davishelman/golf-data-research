@@ -429,6 +429,34 @@ def build_schema(df: pd.DataFrame) -> dict:
                     "length_diff_m": "double", "same_par": "bool", "same_course": "bool",
                 },
             },
+            "presented_similarity": {
+                "path": "data/presented_similarity/<name>.csv",
+                "row_unit": "one (query hole, presented neighbor) pair",
+                "description": (
+                    "Golfer-facing recommendations: the raw similarity table wrapped "
+                    "with a golf-plausibility layer (same-par, cross-course, "
+                    "length-guarded) and filtered/ranked by a 0-1 plausibility score. "
+                    "Use this for 'holes that play like this one'. The raw "
+                    "hole_similarity_examples / hole_similarity_v2 / similarity_modes "
+                    "tables are model/diagnostic outputs and may include "
+                    "golf-implausible neighbors. Present only when built via "
+                    "`python -m pipeline.modeling presented-similarity`."
+                ),
+                "columns": {
+                    "query_hole_id": "string", "similar_hole_id": "string",
+                    "similarity_mode": "string", "raw_rank": "int", "raw_distance": "double",
+                    "query_course_slug": "string", "similar_course_slug": "string",
+                    "query_hole_number": "int", "similar_hole_number": "int",
+                    "query_length_m": "double", "similar_length_m": "double",
+                    "length_diff_m": "double", "length_diff_pct": "double",
+                    "same_par": "bool", "same_course": "bool",
+                    "par_mismatch": "bool", "length_mismatch": "bool",
+                    "water_mismatch": "bool", "hazard_mismatch": "bool",
+                    "geometry_mismatch": "bool", "presentable_bad_flag_count": "int",
+                    "plausibility_score": "double", "is_presentable": "bool",
+                    "plausibility_reasons": "string", "presented_rank": "int",
+                },
+            },
         },
         "point_cloud_parquet": {
             "path": "point_clouds/parquet/<course_slug>__<hole_number>.parquet",
@@ -600,7 +628,8 @@ dataset_manifest.json      machine-readable inventory + counts + checksums
 | `data/hole_clusters.parquet` | one per hole | KMeans/agglomerative clusters + PCA(/UMAP) 2-D coords |
 | `data/hole_similarity_examples.csv` | query×neighbor | v1 unweighted nearest holes |
 | `data/hole_similarity_v2.csv` | query×neighbor | v2 length-aware nearest holes |
-| `data/similarity_modes/*.csv` | query×neighbor | per-mode golf similarity (off_the_tee, approach, green_complex, hazard, terrain, shot_shape, overall_v2); optional |
+| `data/similarity_modes/*.csv` | query×neighbor | per-mode **facet** similarity (off_the_tee, approach, green_complex, hazard, terrain, shot_shape, overall_v2); diagnostics, *not* "plays-alike"; optional |
+| `data/presented_similarity/*.csv` | query×neighbor | **golfer-facing** recommendations: plausibility-filtered + scored "holes that play like this one"; optional |
 | `point_clouds/compact/*.json` | array of points | `[x_aligned_m, y_aligned_m, z_rel_m, label_id]` per point |
 
 ## How the data was generated
@@ -780,6 +809,8 @@ _ARTIFACT_DESCRIPTIONS = {
     "data/hole_clusters.parquet": "Per-hole cluster assignments + PCA/UMAP 2-D coords.",
     "data/hole_similarity_v2.csv": "v2 length-aware nearest-hole rankings.",
     "data/hole_similarity_examples.csv": "v1 unweighted nearest-hole rankings.",
+    "data/presented_similarity/overall_v2.csv":
+        "Golfer-facing recommendations: plausibility-filtered + scored 'plays-alike' matches.",
     "overall_v2.csv": "Golf mode: balanced length-aware nearest holes (overall_v2).",
     "off_the_tee.csv": "Golf mode: tee-shot / drive-zone similarity.",
     "approach.csv": "Golf mode: approach-corridor and approach-hazard similarity.",
@@ -891,6 +922,18 @@ def build_hf_artifact(
     if mode_csvs_copied == 0:
         missing.append("data/similarity_modes/*.csv")
         log.warning("optional input missing, skipping: %s", index.similarity_modes_dir)
+
+    # --- 1c. presented (golf-plausibility-filtered) similarity CSVs (optional) - #
+    # Built by `python -m pipeline.modeling presented-similarity`. These are the
+    # golfer-facing recommendations; raw v1/v2/mode tables remain as diagnostics.
+    presented_csvs_copied = 0
+    if index.presented_similarity_dir.exists():
+        for csv in sorted(index.presented_similarity_dir.glob("*.csv")):
+            _safe_copy(csv, data_dir / "presented_similarity" / csv.name)
+            presented_csvs_copied += 1
+    if presented_csvs_copied == 0:
+        missing.append("data/presented_similarity/*.csv")
+        log.warning("optional input missing, skipping: %s", index.presented_similarity_dir)
 
     # --- 2. visual checks (a couple of sample PNGs) ------------------------- #
     cap = (2 if tier == "lite" else None) if max_visual_checks is None else max_visual_checks
@@ -1010,6 +1053,7 @@ def build_hf_artifact(
         },
         "visual_checks_included": vc_count,
         "similarity_mode_csvs": mode_csvs_copied,
+        "presented_similarity_csvs": presented_csvs_copied,
         "missing_optional_inputs": missing,
         "size": size_for_manifest,
         "artifacts": _artifacts_list(out, _ARTIFACT_DESCRIPTIONS),
@@ -1031,6 +1075,7 @@ def build_hf_artifact(
         "point_count_total": point_total,
         "compact_point_clouds": compact_written,
         "similarity_mode_csvs": mode_csvs_copied,
+        "presented_similarity_csvs": presented_csvs_copied,
         "point_parquet_files": parquet_written,
         "all_hole_points_included": all_points_included,
         "visual_checks": vc_count,

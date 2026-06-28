@@ -200,3 +200,60 @@ def build_similarity_modes(
         log.info("mode '%s' (%d features): %d rows -> %s",
                  mode, len(cols), len(enriched), path)
     return written
+
+
+def build_presented_similarity(
+    courses_root: Path = COURSES_ROOT,
+    *,
+    n_neighbors: int = 10,
+    require_same_par: bool = True,
+    exclude_same_course: bool = True,
+    min_score: float = 0.75,
+    source_csv: Path | None = None,
+    name: str = "overall_v2",
+) -> dict[str, str]:
+    """Write a golfer-presentable similarity table to ``presented_similarity/``.
+
+    Wraps a raw similarity table (default: ``hole_similarity_v2.csv``) with the
+    golf-plausibility layer (:mod:`pipeline.modeling.plausibility`): flags, a 0–1
+    score, readable reasons, then keeps the best ``n_neighbors`` same-par,
+    cross-course, length-/plausibility-filtered matches per hole. The raw v1/v2/
+    mode outputs are read-only and untouched.
+    """
+    from .plausibility import presented_similarity_table
+
+    index = IndexPaths.for_root(courses_root)
+    if not index.hole_features_parquet.exists():
+        raise FileNotFoundError(
+            f"{index.hole_features_parquet} not found. Build features first:\n"
+            "    python -m pipeline.modeling features"
+        )
+    df = pd.read_parquet(index.hole_features_parquet)
+
+    src = Path(source_csv) if source_csv is not None else index.hole_similarity_v2_csv
+    if not src.exists():
+        raise FileNotFoundError(
+            f"{src} not found. Build the raw similarity tables first:\n"
+            "    python -m pipeline.modeling similarity"
+        )
+    raw = pd.read_csv(src)
+
+    table = presented_similarity_table(
+        raw, df, n_neighbors=n_neighbors,
+        require_same_par=require_same_par, exclude_same_course=exclude_same_course,
+        min_score=min_score)
+
+    out_dir = index.presented_similarity_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{name}.csv"
+    table.to_csv(path, index=False)
+
+    n_queries = int(table["query_hole_id"].nunique()) if not table.empty else 0
+    total_queries = int(raw["query_hole_id"].nunique()) if "query_hole_id" in raw else 0
+    log.info("presented '%s': %d rows, %d/%d queries (min_score=%.2f, same_par=%s, "
+             "cross_course=%s) -> %s", name, len(table), n_queries, total_queries,
+             min_score, require_same_par, exclude_same_course, path)
+    if total_queries and n_queries < total_queries:
+        log.info("  %d queries had no presentable match at this threshold",
+                 total_queries - n_queries)
+    return {name: str(path)}
