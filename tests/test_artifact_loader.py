@@ -130,3 +130,41 @@ def test_hf_compact_dir_detected(tmp_path):
         json.dumps({"points": [], "label_map": {}}), encoding="utf-8")
     art = load_modeling_artifacts(root)
     assert art["compact_dir"] == compact
+
+
+# --------------------------------------------------------------------------- #
+# Per-mode similarity CSVs exposed by the loader
+# --------------------------------------------------------------------------- #
+
+def _write_mode_csv(data_dir: Path, mode: str) -> None:
+    md = data_dir / "similarity_modes"
+    md.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({
+        "similarity_mode": [mode], "query_hole_id": ["c__01"],
+        "similar_hole_id": ["c__02"], "rank": [1], "distance": [0.3],
+    }).to_csv(md / f"{mode}.csv", index=False)
+
+
+def test_hf_artifact_exposes_similarity_modes(tmp_path):
+    root = _make_hf(tmp_path / "artifact")
+    _write_mode_csv(root / "data", "overall_v2")
+    _write_mode_csv(root / "data", "hazard")
+    art = load_modeling_artifacts(root)
+    assert art["similarity_modes_dir"] == root / "data" / "similarity_modes"
+    assert set(art["similarity_modes"]) == {"overall_v2", "hazard"}
+    assert len(art["similarity_modes"]["overall_v2"]) == 1
+
+
+def test_local_index_exposes_similarity_modes(tmp_path):
+    root = _make_local(tmp_path / "_index")
+    _write_mode_csv(root, "approach")  # local: tables (and modes dir) in the root
+    art = load_modeling_artifacts(root)
+    assert art["similarity_modes_dir"] == root / "similarity_modes"
+    assert set(art["similarity_modes"]) == {"approach"}
+
+
+def test_similarity_modes_absent_is_empty(tmp_path):
+    root = _make_hf(tmp_path / "artifact")
+    art = load_modeling_artifacts(root)
+    assert art["similarity_modes"] == {}
+    assert art["similarity_modes_dir"] is None

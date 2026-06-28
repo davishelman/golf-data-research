@@ -16,13 +16,19 @@ from pipeline.modeling.hole_feature_builder import (
     zone_features,
 )
 from pipeline.modeling.similarity import (
+    GOLF_MODES,
     LENGTH_AWARE_WEIGHTS,
     SIMILARITY_MODES,
+    available_columns,
     build_feature_matrix,
     cluster_kmeans,
     feature_columns,
+    feature_columns_for_mode,
     feature_summary,
+    matrix_for_mode,
+    missing_mode_columns,
     nearest_neighbor_table,
+    nearest_neighbor_table_mode,
     resolve_mode,
     similar_holes,
     similar_holes_mode,
@@ -394,3 +400,180 @@ def test_mode_v1_matches_defaults_and_v2_filters():
     top = similar_holes_mode(df, cols, "q", "cross_course_same_par_length_guarded", k=5)
     ids = set(top["similar_hole_id"])
     assert ids == {"b_ok"}  # cross-course, same par, within length guard
+
+
+# ---------------------------------------------------------------------------
+# Domain-specific golf similarity modes
+# ---------------------------------------------------------------------------
+
+
+def _modes_df(n=6):
+    """Synthetic feature frame covering >=1 column of every golf mode.
+
+    Identifiers + a representative column from each mode's feature group, so all
+    seven modes resolve. Discriminating columns vary; the rest are constant.
+    """
+    rng = np.random.default_rng(7)
+    return pd.DataFrame({
+        "hole_id": [f"{('a','b')[i % 2]}__{i:02d}" for i in range(n)],
+        "course_slug": [("a", "b")[i % 2] for i in range(n)],
+        "course_name": ["A/B"] * n,
+        "hole_number": list(range(1, n + 1)),
+        "par": [4] * n,
+        "hole_length_m": rng.uniform(360, 420, n),
+        # off_the_tee
+        "drive_zone_fairway_pct": rng.uniform(0, 1, n),
+        "dogleg_score": rng.uniform(0, 0.3, n),
+        # approach
+        "approach_zone_fairway_pct": rng.uniform(0, 1, n),
+        "green_relative_elevation": rng.uniform(-3, 3, n),
+        # green_complex
+        "green_pct": rng.uniform(0, 0.2, n),
+        "green_complex_bunker_pct": rng.uniform(0, 0.3, n),
+        # hazard
+        "bunker_pct": rng.uniform(0, 0.2, n),
+        "water_pct": rng.uniform(0, 0.2, n),
+        # terrain
+        "z_mean": rng.uniform(-5, 5, n),
+        "z_range": rng.uniform(1, 20, n),
+        # shot_shape
+        "hole_width_m": rng.uniform(40, 120, n),
+        "fairway_width_drive_zone": rng.uniform(20, 50, n),
+    })
+
+
+def test_every_golf_mode_resolves_to_usable_nonid_columns():
+    df = _modes_df()
+    ids = set(("hole_id", "course_slug", "course_name", "hole_number"))
+    for mode in GOLF_MODES:
+        cols = feature_columns_for_mode(df, mode)
+        assert len(cols) >= 1, f"mode {mode} resolved to zero columns"
+        assert not (set(cols) & ids), f"mode {mode} leaked an identifier column"
+        assert all(pd.api.types.is_numeric_dtype(df[c]) for c in cols)
+
+
+def test_golf_modes_registered_and_described():
+    assert set(GOLF_MODES) <= set(SIMILARITY_MODES)
+    for mode in GOLF_MODES:
+        assert resolve_mode(mode).get("description")  # non-empty description
+
+
+def test_available_columns_filters_missing_and_identifiers():
+    df = _modes_df()
+    got = available_columns(df, ["bunker_pct", "hole_id", "nonexistent_col", "z_mean"])
+    assert got == ["bunker_pct", "z_mean"]  # drops identifier + missing
+
+
+def test_missing_mode_columns_reported_not_fatal():
+    # Drop an off_the_tee column; the mode should still resolve on what remains.
+    df = _modes_df().drop(columns=["dogleg_score"])
+    missing = missing_mode_columns(df, "off_the_tee")
+    assert "dogleg_score" in missing
+    cols = feature_columns_for_mode(df, "off_the_tee")
+    assert "dogleg_score" not in cols and "drive_zone_fairway_pct" in cols
+
+
+def test_mode_with_no_usable_columns_raises_clear_error():
+    # A frame with only identifiers + an unrelated column: 'terrain' has nothing.
+    df = pd.DataFrame({
+        "hole_id": ["a__01", "a__02"], "course_slug": ["a", "a"],
+        "course_name": ["A", "A"], "hole_number": [1, 2], "par": [4, 4],
+        "unrelated_feat": [0.1, 0.2],
+    })
+    with pytest.raises(ValueError, match="terrain"):
+        feature_columns_for_mode(df, "terrain")
+
+
+def test_overall_v2_uses_all_features():
+    df = _modes_df()
+    assert set(feature_columns_for_mode(df, "overall_v2")) == set(feature_columns(df))
+
+
+def test_modes_produce_different_rankings():
+    # Hole A matches B off-the-tee but C on terrain; the only varying columns are
+    # drive_zone_fairway_pct (tee) and z_mean (terrain), everything else constant.
+    df = pd.DataFrame({
+        "hole_id": ["A", "B", "C"], "course_slug": ["x", "x", "x"],
+        "course_name": ["X"] * 3, "hole_number": [1, 2, 3], "par": [4, 4, 4],
+        "hole_length_m": [400.0, 400.0, 400.0],
+        "drive_zone_fairway_pct": [0.0, 0.0, 1.0],   # A==B, C far
+        "dogleg_score": [0.1, 0.1, 0.1],
+        "fairway_width_drive_zone": [30.0, 30.0, 30.0],
+        "z_mean": [0.0, 50.0, 0.0],                   # A==C, B far
+        "z_range": [5.0, 5.0, 5.0],
+        "tee_to_green_elevation_change": [0.0, 0.0, 0.0],
+    })
+    tee_top = similar_holes_mode(df, None, "A", "off_the_tee", k=1)
+    terr_top = similar_holes_mode(df, None, "A", "terrain", k=1)
+    assert tee_top.iloc[0]["similar_hole_id"] == "B"
+    assert terr_top.iloc[0]["similar_hole_id"] == "C"
+
+
+def test_nearest_neighbor_table_mode_is_mode_driven():
+    df = _modes_df(8)
+    # cols arg is retained for API compat but ignored; mode picks its own subset.
+    table = nearest_neighbor_table_mode(df, None, mode="hazard", k=3)
+    assert len(table) == len(df) * 3
+    assert (table["query_hole_id"] != table["similar_hole_id"]).all()
+
+
+def test_matrix_for_mode_returns_cols_and_cfg():
+    df = _modes_df()
+    X, cols, cfg = matrix_for_mode(df, "green_complex")
+    assert X.shape == (len(df), len(cols))
+    assert np.isfinite(X).all()
+    assert "feature_weights" in cfg and "same_par" in cfg
+
+
+def test_v1_v2_modes_still_backward_compatible():
+    # Legacy modes must keep their exact filter semantics.
+    assert resolve_mode("v1")["feature_weights"] is None
+    for m in ("length_weighted", "same_par_length_guarded",
+              "cross_course_same_par_length_guarded"):
+        assert m in SIMILARITY_MODES
+    cfg = SIMILARITY_MODES["cross_course_same_par_length_guarded"]
+    assert cfg["exclude_same_course"] and cfg["same_par"]
+    assert cfg["max_length_diff_m"] == 35.0 and cfg["max_length_diff_pct"] == 0.12
+
+
+def test_build_similarity_modes_writes_one_csv_per_mode(tmp_path):
+    from pipeline.modeling.export_similarity import build_similarity_modes
+    from pipeline.paths import IndexPaths
+
+    courses_root = tmp_path / "courses"
+    index = IndexPaths.for_root(courses_root)
+    index.ensure()
+    _modes_df(12).to_parquet(index.hole_features_parquet)
+
+    written = build_similarity_modes(courses_root, n_neighbors=3)
+    assert set(written) == set(GOLF_MODES)
+    out_dir = index.similarity_modes_dir
+    expected_cols = [
+        "similarity_mode", "query_hole_id", "query_course_slug", "query_hole_number",
+        "similar_hole_id", "similar_course_slug", "similar_hole_number",
+        "rank", "distance", "query_length_m", "similar_length_m", "length_diff_m",
+        "same_par", "same_course",
+    ]
+    for mode in GOLF_MODES:
+        path = out_dir / f"{mode}.csv"
+        assert path.exists(), f"missing {mode}.csv"
+        dfm = pd.read_csv(path)
+        assert list(dfm.columns) == expected_cols
+        assert (dfm["similarity_mode"] == mode).all()
+        assert (dfm["query_hole_id"] != dfm["similar_hole_id"]).all()
+
+
+def test_build_similarity_modes_single_mode(tmp_path):
+    from pipeline.modeling.export_similarity import build_similarity_modes
+    from pipeline.paths import IndexPaths
+
+    courses_root = tmp_path / "courses"
+    index = IndexPaths.for_root(courses_root)
+    index.ensure()
+    _modes_df(10).to_parquet(index.hole_features_parquet)
+
+    written = build_similarity_modes(courses_root, modes=("hazard",), n_neighbors=2)
+    assert set(written) == {"hazard"}
+    assert (index.similarity_modes_dir / "hazard.csv").exists()
+    # other modes were not written
+    assert not (index.similarity_modes_dir / "terrain.csv").exists()

@@ -5,21 +5,23 @@ Pure, composable functions over a feature DataFrame. Identifiers (see
 fed to the model. Optional dependencies (UMAP) degrade gracefully; required ones
 (scikit-learn) raise a clear install message.
 
-v1 vs v2
---------
+v1 / v2 / golf modes
+--------------------
 * **v1** (defaults everywhere): median-impute → ``StandardScaler`` → unweighted
-  Euclidean nearest neighbors. Backward compatible; existing calls are unchanged.
-* **v2 (length-aware)**: optional **feature weighting** (e.g. up-weight
-  ``hole_length_m``) applied *after* standardization, and an optional **length
-  guard** that filters out candidate holes whose length differs from the query by
-  more than a threshold. Length matters more for golf "plays-alike" similarity
-  than a single standardized feature would imply, so v2 makes it explicit.
+  Euclidean nearest neighbors. Backward compatible.
+* **v2 (length-aware)**: optional **feature weighting** (after standardization)
+  and an optional **length guard** that drops candidates whose length differs
+  from the query by more than a threshold.
+* **Golf modes** (``SIMILARITY_MODES`` / ``GOLF_MODES``): each mode selects a
+  *subset* of features (or all), with weights + default filters, to answer a
+  specific golf question — "similar off the tee", "similar approach", "similar
+  green complex", "similar hazards", "similar terrain", "similar shot shape", and
+  the balanced ``overall_v2``.
 
 Missing-value policy
 --------------------
-Engineered features are intentionally ``NaN`` when undefined for a hole. Each
-feature column is **median-imputed**, then standardized. All-missing columns are
-kept (imputed to 0); constant columns scale to 0 (no NaNs leak into the model).
+Each feature column is **median-imputed**, then standardized. All-missing columns
+are kept (imputed to 0); constant columns scale to 0 (no NaNs leak in).
 """
 
 from __future__ import annotations
@@ -51,7 +53,7 @@ def umap_available() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# v2 presets: feature weights + named modes
+# v2 presets: feature weights + length-guard defaults
 # ---------------------------------------------------------------------------
 
 # Length-aware weighting. Weights scale each standardized feature column, so a
@@ -75,39 +77,131 @@ LENGTH_AWARE_WEIGHTS: dict[str, float] = {
 DEFAULT_MAX_LENGTH_DIFF_M: float = 35.0
 DEFAULT_MAX_LENGTH_DIFF_PCT: float = 0.12
 
-# Named modes bundle weighting + neighbor filters. ``v1`` reproduces the original
-# behavior exactly. Pass a mode to :func:`similar_holes_mode` /
-# :func:`nearest_neighbor_table_mode`.
+
+# ---------------------------------------------------------------------------
+# Golf-mode feature subsets
+# ---------------------------------------------------------------------------
+
+_OFF_THE_TEE_COLS = (
+    "hole_length_m", "par",
+    "drive_zone_fairway_pct", "drive_zone_trees_pct",
+    "drive_zone_bunker_pct", "drive_zone_water_pct",
+    "drive_trees_left_pct", "drive_trees_right_pct",
+    "drive_bunker_left_pct", "drive_bunker_right_pct",
+    "drive_water_left_pct", "drive_water_right_pct",
+    "fairway_width_drive_zone", "dogleg_score", "fairway_centerline_shift",
+)
+_APPROACH_COLS = (
+    "approach_zone_fairway_pct", "approach_zone_trees_pct",
+    "approach_zone_bunker_pct", "approach_zone_water_pct",
+    "approach_trees_left_pct", "approach_trees_right_pct",
+    "approach_bunker_left_pct", "approach_bunker_right_pct",
+    "approach_water_left_pct", "approach_water_right_pct",
+    "fairway_width_approach_zone", "tee_to_green_elevation_change",
+    "green_relative_elevation",
+)
+_GREEN_COMPLEX_COLS = (
+    "green_pct", "green_complex_bunker_pct", "green_complex_water_pct",
+    "green_complex_trees_pct", "green_complex_mean_z", "green_complex_z_range",
+    "green_relative_elevation", "tee_to_green_elevation_change",
+)
+_HAZARD_COLS = (
+    "bunker_pct", "water_pct", "trees_pct", "sand_pct",
+    "drive_zone_bunker_pct", "drive_zone_water_pct", "drive_zone_trees_pct",
+    "approach_zone_bunker_pct", "approach_zone_water_pct", "approach_zone_trees_pct",
+    "green_complex_bunker_pct", "green_complex_water_pct", "green_complex_trees_pct",
+    "drive_trees_left_pct", "drive_trees_right_pct",
+    "drive_bunker_left_pct", "drive_bunker_right_pct",
+    "drive_water_left_pct", "drive_water_right_pct",
+    "approach_trees_left_pct", "approach_trees_right_pct",
+    "approach_bunker_left_pct", "approach_bunker_right_pct",
+    "approach_water_left_pct", "approach_water_right_pct",
+)
+_TERRAIN_COLS = (
+    "z_min", "z_max", "z_mean", "z_std", "z_range", "z_p10", "z_p50", "z_p90",
+    "tee_to_green_elevation_change", "green_relative_elevation",
+    "tee_zone_mean_z", "tee_zone_z_range", "drive_zone_mean_z", "drive_zone_z_range",
+    "approach_zone_mean_z", "approach_zone_z_range",
+    "green_complex_mean_z", "green_complex_z_range",
+)
+_SHOT_SHAPE_COLS = (
+    "dogleg_score", "fairway_centerline_shift", "hole_width_m", "hole_depth_m",
+    "fairway_width_drive_zone", "fairway_width_approach_zone",
+    "x_min", "x_max", "y_min", "y_max",
+)
+
+
+def _mode(feature_columns, feature_weights, description, *, same_par=False,
+          exclude_same_course=False, max_length_diff_m=None, max_length_diff_pct=None):
+    return {
+        "feature_columns": feature_columns,
+        "feature_weights": feature_weights,
+        "description": description,
+        "same_par": same_par,
+        "exclude_same_course": exclude_same_course,
+        "max_length_diff_m": max_length_diff_m,
+        "max_length_diff_pct": max_length_diff_pct,
+    }
+
+
+# Each mode is a plain dict (backward compatible with v1/v2 dict access).
+# ``feature_columns=None`` means "use all numeric features".
 SIMILARITY_MODES: dict[str, dict] = {
-    "v1": {
-        "feature_weights": None,
-        "exclude_same_course": False,
-        "same_par": False,
-        "max_length_diff_m": None,
-        "max_length_diff_pct": None,
-    },
-    "length_weighted": {
-        "feature_weights": LENGTH_AWARE_WEIGHTS,
-        "exclude_same_course": False,
-        "same_par": False,
-        "max_length_diff_m": None,
-        "max_length_diff_pct": None,
-    },
-    "same_par_length_guarded": {
-        "feature_weights": LENGTH_AWARE_WEIGHTS,
-        "exclude_same_course": False,
-        "same_par": True,
-        "max_length_diff_m": DEFAULT_MAX_LENGTH_DIFF_M,
-        "max_length_diff_pct": DEFAULT_MAX_LENGTH_DIFF_PCT,
-    },
-    "cross_course_same_par_length_guarded": {
-        "feature_weights": LENGTH_AWARE_WEIGHTS,
-        "exclude_same_course": True,
-        "same_par": True,
-        "max_length_diff_m": DEFAULT_MAX_LENGTH_DIFF_M,
-        "max_length_diff_pct": DEFAULT_MAX_LENGTH_DIFF_PCT,
-    },
+    # --- legacy v1 / v2 modes (unchanged behavior) ---
+    "v1": _mode(None, None, "v1: all features, unweighted, no filters."),
+    "length_weighted": _mode(
+        None, LENGTH_AWARE_WEIGHTS,
+        "All features with length-aware weights; no hard length filter."),
+    "same_par_length_guarded": _mode(
+        None, LENGTH_AWARE_WEIGHTS,
+        "Length-aware weights, same par, length guard.",
+        same_par=True, max_length_diff_m=DEFAULT_MAX_LENGTH_DIFF_M,
+        max_length_diff_pct=DEFAULT_MAX_LENGTH_DIFF_PCT),
+    "cross_course_same_par_length_guarded": _mode(
+        None, LENGTH_AWARE_WEIGHTS,
+        "Cross-course, same par, length-guarded, length-aware weights (v2 export).",
+        same_par=True, exclude_same_course=True,
+        max_length_diff_m=DEFAULT_MAX_LENGTH_DIFF_M,
+        max_length_diff_pct=DEFAULT_MAX_LENGTH_DIFF_PCT),
+
+    # --- golf-specific modes ---
+    "overall_v2": _mode(
+        None, LENGTH_AWARE_WEIGHTS,
+        "Balanced overall similarity: all features, length-aware weights, same "
+        "par, length guard (cross-course optional).",
+        same_par=True, max_length_diff_m=DEFAULT_MAX_LENGTH_DIFF_M,
+        max_length_diff_pct=DEFAULT_MAX_LENGTH_DIFF_PCT),
+    "off_the_tee": _mode(
+        _OFF_THE_TEE_COLS, {},
+        "How the hole plays from the tee through the drive zone: length, "
+        "drive-zone fairway/hazards, left/right pressure, width, dogleg/shape."),
+    "approach": _mode(
+        _APPROACH_COLS, {},
+        "The approach-shot portion: approach-zone fairway/hazards, left/right "
+        "pressure, approach width, and elevation into the green."),
+    "green_complex": _mode(
+        _GREEN_COMPLEX_COLS, {},
+        "Green surroundings and defenses: green share, green-complex hazards, "
+        "and green-complex / tee-to-green elevation."),
+    "hazard": _mode(
+        _HAZARD_COLS, {},
+        "Penalty/defense pattern: overall + per-zone bunker/water/trees/sand and "
+        "left/right hazard pressure."),
+    "terrain": _mode(
+        _TERRAIN_COLS, {},
+        "Elevation/terrain profile: z statistics, tee-to-green change, and "
+        "per-zone mean_z / z_range."),
+    "shot_shape": _mode(
+        _SHOT_SHAPE_COLS, {},
+        "Hole bend / corridor geometry: dogleg, centerline shift, width/depth, "
+        "fairway widths, and the spatial bounding box."),
 }
+
+# The domain-specific golf modes, in a stable order (used by the mode exporter).
+GOLF_MODES: tuple[str, ...] = (
+    "overall_v2", "off_the_tee", "approach", "green_complex",
+    "hazard", "terrain", "shot_shape",
+)
 
 
 def resolve_mode(mode: str) -> dict:
@@ -116,6 +210,10 @@ def resolve_mode(mode: str) -> dict:
         raise KeyError(f"unknown similarity mode '{mode}'. "
                        f"Choices: {sorted(SIMILARITY_MODES)}")
     return dict(SIMILARITY_MODES[mode])
+
+
+def mode_description(mode: str) -> str:
+    return resolve_mode(mode).get("description", "")
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +228,48 @@ def feature_columns(df: pd.DataFrame) -> list[str]:
         c for c in df.columns
         if c not in drop and pd.api.types.is_numeric_dtype(df[c])
     ]
+
+
+def available_columns(df: pd.DataFrame, desired) -> list[str]:
+    """Subset of ``desired`` that exists, is numeric, and is not an identifier."""
+    drop = set(ID_COLUMNS)
+    return [
+        c for c in desired
+        if c in df.columns and c not in drop and pd.api.types.is_numeric_dtype(df[c])
+    ]
+
+
+def missing_mode_columns(df: pd.DataFrame, mode: str) -> list[str]:
+    """Desired columns for ``mode`` that are absent from ``df`` ([] for 'all features')."""
+    desired = resolve_mode(mode)["feature_columns"]
+    if desired is None:
+        return []
+    have = set(available_columns(df, desired))
+    return [c for c in desired if c not in have]
+
+
+def feature_columns_for_mode(df: pd.DataFrame, mode: str) -> list[str]:
+    """Usable feature columns for ``mode``.
+
+    ``None`` feature set -> all numeric features. A subset mode returns its
+    available columns; if a subset mode has **no** usable columns it raises a
+    clear error (the mode is unusable for this table). Missing-but-not-fatal
+    columns are available via :func:`missing_mode_columns`.
+    """
+    desired = resolve_mode(mode)["feature_columns"]
+    if desired is None:
+        return feature_columns(df)
+    present = available_columns(df, desired)
+    if not present:
+        raise ValueError(
+            f"similarity mode '{mode}' has no usable feature columns in this "
+            f"table (wanted: {list(desired)})."
+        )
+    missing = [c for c in desired if c not in set(present)]
+    if missing:
+        log.warning("mode '%s' missing %d/%d columns: %s",
+                    mode, len(missing), len(desired), missing)
+    return present
 
 
 def feature_summary(df: pd.DataFrame, cols: Optional[list[str]] = None) -> pd.DataFrame:
@@ -158,9 +298,8 @@ def build_feature_matrix(
     """Median-impute, standardize, and (optionally) weight. Returns ``(X, imputer, scaler)``.
 
     ``feature_weights`` maps a column name to a multiplier applied **after**
-    standardization, so a weight means "importance in standardized feature
-    space". Unlisted columns default to weight 1.0. The raw feature table is never
-    mutated. With ``feature_weights=None`` the output is identical to v1.
+    standardization (unlisted columns default to weight 1.0). The raw feature
+    table is never mutated. With ``feature_weights=None`` the output is v1.
     """
     sk_impute = _require("sklearn.impute", "scikit-learn")
     sk_pre = _require("sklearn.preprocessing", "scikit-learn")
@@ -171,7 +310,7 @@ def build_feature_matrix(
     Xs = scaler.fit_transform(Xi)
     if feature_weights:
         w = np.array([float(feature_weights.get(c, 1.0)) for c in cols], dtype="float64")
-        Xs = Xs * w  # broadcast over columns
+        Xs = Xs * w
     return Xs, imputer, scaler
 
 
@@ -219,17 +358,13 @@ def cluster_agglomerative(X: np.ndarray, k: int = 8) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Length guard helpers
+# Length guard + par helpers
 # ---------------------------------------------------------------------------
 
 
 def _allowed_length_diff(query_len: float, max_m: Optional[float],
                          max_pct: Optional[float]) -> Optional[float]:
-    """The permitted absolute length difference for a query.
-
-    If both thresholds are given, the **more permissive** (larger) one wins.
-    Returns None when no length guard is active.
-    """
+    """Permitted absolute length difference; the more permissive threshold wins."""
     vals: list[float] = []
     if max_m is not None:
         vals.append(float(max_m))
@@ -251,14 +386,9 @@ def _length_ok(lengths, i: int, j: int, max_m, max_pct) -> bool:
         return True
     Li, Lj = lengths[i], lengths[j]
     if pd.isna(Li) or pd.isna(Lj):
-        return True  # cannot judge; do not filter
+        return True
     allowed = _allowed_length_diff(Li, max_m, max_pct)
     return allowed is None or abs(Li - Lj) <= allowed
-
-
-# ---------------------------------------------------------------------------
-# Nearest-neighbor lookup
-# ---------------------------------------------------------------------------
 
 
 def _par_equal(a, b) -> bool:
@@ -271,6 +401,11 @@ def _pars(df: pd.DataFrame, same_par: bool):
     if "par" not in df.columns:
         raise ValueError("same_par=True requires a 'par' column in the feature table.")
     return df["par"].to_numpy()
+
+
+# ---------------------------------------------------------------------------
+# Nearest-neighbor lookup
+# ---------------------------------------------------------------------------
 
 
 def nearest_neighbor_table(
@@ -287,13 +422,7 @@ def nearest_neighbor_table(
     Optional filters (all combinable; defaults reproduce v1):
       * ``exclude_same_course`` — skip neighbors on the query's course.
       * ``same_par`` — only neighbors with the same par as the query.
-      * ``max_length_diff_m`` / ``max_length_diff_pct`` — length guard; a
-        candidate is dropped if its ``hole_length_m`` differs from the query by
-        more than ``max(max_length_diff_m, query_len * max_length_diff_pct)``.
-
-    Returns long-format rows:
-        query_hole_id, query_course_slug, query_hole_number,
-        similar_hole_id, similar_course_slug, similar_hole_number, distance, rank
+      * ``max_length_diff_m`` / ``max_length_diff_pct`` — length guard.
     """
     sk_nn = _require("sklearn.neighbors", "scikit-learn")
     n = X.shape[0]
@@ -392,31 +521,50 @@ def similar_holes(
 
 
 # ---------------------------------------------------------------------------
-# Mode convenience wrappers (build weighted matrix + apply mode filters)
+# Mode convenience wrappers (build the mode's matrix + apply the mode's filters)
 # ---------------------------------------------------------------------------
 
 
-def nearest_neighbor_table_mode(
-    df: pd.DataFrame, cols: list[str], mode: str = "v1", k: int = 10
-) -> pd.DataFrame:
+def matrix_for_mode(df: pd.DataFrame, mode: str = "v1"):
+    """Build the standardized (and weighted) matrix for ``mode``.
+
+    Returns ``(X, cols, cfg)`` where ``cols`` is the mode's resolved feature list.
+    """
     cfg = resolve_mode(mode)
+    cols = feature_columns_for_mode(df, mode)
     X, _, _ = build_feature_matrix(df, cols, feature_weights=cfg["feature_weights"])
+    return X, cols, cfg
+
+
+def nearest_neighbor_table_mode(
+    df: pd.DataFrame, cols: Optional[list[str]], mode: str = "v1", k: int = 10,
+    exclude_same_course: Optional[bool] = None,
+) -> pd.DataFrame:
+    """Neighbor table for a named mode (``cols`` retained for API compatibility;
+    the mode's own feature subset is used). ``exclude_same_course`` overrides the
+    mode default when provided."""
+    X, _cols, cfg = matrix_for_mode(df, mode)
+    esc = cfg["exclude_same_course"] if exclude_same_course is None else exclude_same_course
     return nearest_neighbor_table(
-        df, X, k=k,
-        exclude_same_course=cfg["exclude_same_course"], same_par=cfg["same_par"],
+        df, X, k=k, exclude_same_course=esc, same_par=cfg["same_par"],
         max_length_diff_m=cfg["max_length_diff_m"],
         max_length_diff_pct=cfg["max_length_diff_pct"],
     )
 
 
 def similar_holes_mode(
-    df: pd.DataFrame, cols: list[str], hole_id: str, mode: str = "v1", k: int = 10
+    df: pd.DataFrame, cols: Optional[list[str]], hole_id: str, mode: str = "v1",
+    k: int = 10, exclude_same_course: Optional[bool] = None,
 ) -> pd.DataFrame:
-    cfg = resolve_mode(mode)
-    X, _, _ = build_feature_matrix(df, cols, feature_weights=cfg["feature_weights"])
+    """K most similar holes to ``hole_id`` under a named mode.
+
+    ``cols`` is retained for backward compatibility; the mode determines the
+    actual feature subset. ``exclude_same_course`` overrides the mode default.
+    """
+    X, _cols, cfg = matrix_for_mode(df, mode)
+    esc = cfg["exclude_same_course"] if exclude_same_course is None else exclude_same_course
     return similar_holes(
-        df, X, hole_id, k=k,
-        exclude_same_course=cfg["exclude_same_course"], same_par=cfg["same_par"],
+        df, X, hole_id, k=k, exclude_same_course=esc, same_par=cfg["same_par"],
         max_length_diff_m=cfg["max_length_diff_m"],
         max_length_diff_pct=cfg["max_length_diff_pct"],
     )

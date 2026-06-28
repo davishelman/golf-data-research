@@ -96,6 +96,10 @@ class IndexPaths:
     def visual_checks(self) -> Path:
         return self.root / "visual_checks"
 
+    @property
+    def similarity_modes_dir(self) -> Path:
+        return self.root / "similarity_modes"
+
 
 # Legacy constant kept for backward compatibility with older callers.
 ALL_HOLES_CSV: Path = IndexPaths.for_root().all_holes_csv

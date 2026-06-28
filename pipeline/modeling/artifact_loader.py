@@ -127,6 +127,9 @@ def load_modeling_artifacts(root: PathLike | None = None) -> dict:
     * ``features`` — required ``hole_features`` table (DataFrame)
     * ``clusters`` / ``similarity_v1`` / ``similarity_v2`` — DataFrames or None
     * ``manifest`` / ``schema`` / ``feature_dictionary`` — dicts or None
+    * ``similarity_modes`` — ``{mode_name: DataFrame}`` from
+      ``data/similarity_modes/*.csv`` (``{}`` if none shipped)
+    * ``similarity_modes_dir`` — that folder's Path, or None
     * ``compact_dir`` — HF compact point-cloud dir, or None for local
     * ``courses_root`` — local ``courses/`` tree (for visual checks), or None
     """
@@ -142,6 +145,17 @@ def load_modeling_artifacts(root: PathLike | None = None) -> dict:
     manifest = _read_json(resolved / "dataset_manifest.json")
     schema = _read_json(resolved / "metadata" / "schema.json")
     feature_dictionary = _read_json(resolved / "metadata" / "feature_dictionary.json")
+
+    # Optional per-mode similarity CSVs (data/similarity_modes/<mode>.csv). The
+    # path is the same relative to data_dir for both layouts. Absent -> {} / None.
+    modes_dir = data_dir / "similarity_modes"
+    similarity_modes: dict[str, object] = {}
+    if modes_dir.exists():
+        for csv in sorted(modes_dir.glob("*.csv")):
+            dfm = _maybe_read(csv, pd.read_csv)
+            if dfm is not None:
+                similarity_modes[csv.stem] = dfm
+    similarity_modes_dir = modes_dir if modes_dir.exists() else None
 
     if kind == "hf_artifact":
         compact = resolved / "point_clouds" / "compact"
@@ -165,6 +179,8 @@ def load_modeling_artifacts(root: PathLike | None = None) -> dict:
         "manifest": manifest,
         "schema": schema,
         "feature_dictionary": feature_dictionary,
+        "similarity_modes": similarity_modes,          # {mode_name: DataFrame}, may be {}
+        "similarity_modes_dir": similarity_modes_dir,  # Path or None
         "compact_dir": compact_dir,
         "courses_root": courses_root,
     }

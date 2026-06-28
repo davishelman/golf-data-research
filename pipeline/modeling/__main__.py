@@ -9,6 +9,8 @@ Usage:
     python -m pipeline.modeling hf-export --tier lite --output hf_artifact_lite
     python -m pipeline.modeling hf-export --tier full --output hf_artifact_full \
         --include-point-parquet      # build a Hugging Face upload folder
+    python -m pipeline.modeling similarity-modes            # all golf modes -> CSVs
+    python -m pipeline.modeling similarity-modes --mode off_the_tee
 """
 
 from __future__ import annotations
@@ -27,8 +29,14 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Build hole feature rows, find similar golf holes, and visually compare them.",
     )
     p.add_argument("command",
-                   choices=["features", "similarity", "all", "visual-check", "hf-export"],
+                   choices=["features", "similarity", "all", "visual-check",
+                            "hf-export", "similarity-modes"],
                    help="Which step to run.")
+    # similarity-modes options
+    p.add_argument("--mode", default=None,
+                   help="Single golf mode for 'similarity-modes' (default: all GOLF_MODES). "
+                        "One of: overall_v2, off_the_tee, approach, green_complex, "
+                        "hazard, terrain, shot_shape.")
     # hf-export options
     p.add_argument("--tier", choices=["lite", "full"], default="lite",
                    help="Hugging Face artifact tier (hf-export; default lite).")
@@ -127,6 +135,17 @@ def main(argv: list[str] | None = None) -> int:
             log.info("hf-export (%s) -> %s | %s across %d files",
                      summary["tier"], summary["output_dir"],
                      summary["total_human"], summary["total_files"])
+        if args.command == "similarity-modes":
+            from .export_similarity import build_similarity_modes
+            from .similarity import GOLF_MODES
+            modes = (args.mode,) if args.mode else GOLF_MODES
+            esc = True if args.exclude_same_course else None
+            written = build_similarity_modes(
+                args.courses_root, modes=modes, n_neighbors=args.neighbors,
+                exclude_same_course=esc,
+            )
+            for k, v in written.items():
+                log.info("%s -> %s", k, v)
         if args.command == "visual-check":
             return _run_visual_check(args)
     except (ImportError, FileNotFoundError, ValueError, RuntimeError, KeyError) as exc:

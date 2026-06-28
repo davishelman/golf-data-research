@@ -409,6 +409,26 @@ def build_schema(df: pd.DataFrame) -> dict:
                     "same_course": "bool", "similarity_mode": "string",
                 },
             },
+            "similarity_modes": {
+                "path": "data/similarity_modes/<mode>.csv",
+                "row_unit": "one (query hole, neighbor) pair",
+                "description": (
+                    "Domain-specific golf similarity, one CSV per mode (overall_v2, "
+                    "off_the_tee, approach, green_complex, hazard, terrain, "
+                    "shot_shape). Each mode scores similarity over a different "
+                    "feature subset, so a hole's top matches differ by question. "
+                    "Present only when built via "
+                    "`python -m pipeline.modeling similarity-modes`."
+                ),
+                "columns": {
+                    "similarity_mode": "string", "query_hole_id": "string",
+                    "query_course_slug": "string", "query_hole_number": "int",
+                    "similar_hole_id": "string", "similar_course_slug": "string",
+                    "similar_hole_number": "int", "rank": "int", "distance": "double",
+                    "query_length_m": "double", "similar_length_m": "double",
+                    "length_diff_m": "double", "same_par": "bool", "same_course": "bool",
+                },
+            },
         },
         "point_cloud_parquet": {
             "path": "point_clouds/parquet/<course_slug>__<hole_number>.parquet",
@@ -580,6 +600,7 @@ dataset_manifest.json      machine-readable inventory + counts + checksums
 | `data/hole_clusters.parquet` | one per hole | KMeans/agglomerative clusters + PCA(/UMAP) 2-D coords |
 | `data/hole_similarity_examples.csv` | query×neighbor | v1 unweighted nearest holes |
 | `data/hole_similarity_v2.csv` | query×neighbor | v2 length-aware nearest holes |
+| `data/similarity_modes/*.csv` | query×neighbor | per-mode golf similarity (off_the_tee, approach, green_complex, hazard, terrain, shot_shape, overall_v2); optional |
 | `point_clouds/compact/*.json` | array of points | `[x_aligned_m, y_aligned_m, z_rel_m, label_id]` per point |
 
 ## How the data was generated
@@ -759,6 +780,13 @@ _ARTIFACT_DESCRIPTIONS = {
     "data/hole_clusters.parquet": "Per-hole cluster assignments + PCA/UMAP 2-D coords.",
     "data/hole_similarity_v2.csv": "v2 length-aware nearest-hole rankings.",
     "data/hole_similarity_examples.csv": "v1 unweighted nearest-hole rankings.",
+    "overall_v2.csv": "Golf mode: balanced length-aware nearest holes (overall_v2).",
+    "off_the_tee.csv": "Golf mode: tee-shot / drive-zone similarity.",
+    "approach.csv": "Golf mode: approach-corridor and approach-hazard similarity.",
+    "green_complex.csv": "Golf mode: green surroundings / green-defense similarity.",
+    "hazard.csv": "Golf mode: bunker/water/tree/sand pressure similarity.",
+    "terrain.csv": "Golf mode: elevation / relative-z profile similarity.",
+    "shot_shape.csv": "Golf mode: dogleg / corridor-geometry similarity.",
     "data/all_holes.parquet": "Pipeline roll-up: identifiers + terrain stats per hole.",
     "data/all_courses_manifest.json": "Per-course processing status + DEM provenance.",
     "metadata/label_map.json": "Surface label id -> name map.",
@@ -851,6 +879,18 @@ def build_hf_artifact(
         else:
             missing.append(f"data/{name}")
             log.warning("optional input missing, skipping: %s", src)
+
+    # --- 1b. per-mode similarity CSVs (optional) ---------------------------- #
+    # Built by `python -m pipeline.modeling similarity-modes`. Copied as a group
+    # if present; skipped (not fatal) otherwise.
+    mode_csvs_copied = 0
+    if index.similarity_modes_dir.exists():
+        for csv in sorted(index.similarity_modes_dir.glob("*.csv")):
+            _safe_copy(csv, data_dir / "similarity_modes" / csv.name)
+            mode_csvs_copied += 1
+    if mode_csvs_copied == 0:
+        missing.append("data/similarity_modes/*.csv")
+        log.warning("optional input missing, skipping: %s", index.similarity_modes_dir)
 
     # --- 2. visual checks (a couple of sample PNGs) ------------------------- #
     cap = (2 if tier == "lite" else None) if max_visual_checks is None else max_visual_checks
@@ -969,6 +1009,7 @@ def build_hf_artifact(
             "selection": "all processed holes" if tier == "full" else "curated subset",
         },
         "visual_checks_included": vc_count,
+        "similarity_mode_csvs": mode_csvs_copied,
         "missing_optional_inputs": missing,
         "size": size_for_manifest,
         "artifacts": _artifacts_list(out, _ARTIFACT_DESCRIPTIONS),
@@ -989,6 +1030,7 @@ def build_hf_artifact(
         "holes_processed": stats["holes_processed"],
         "point_count_total": point_total,
         "compact_point_clouds": compact_written,
+        "similarity_mode_csvs": mode_csvs_copied,
         "point_parquet_files": parquet_written,
         "all_hole_points_included": all_points_included,
         "visual_checks": vc_count,
