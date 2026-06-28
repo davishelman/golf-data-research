@@ -181,6 +181,31 @@ tables, and per-hole compact point clouds. Build/upload/download steps and how t
 run the notebook against downloaded data:
 [`docs/huggingface_artifact.md`](docs/huggingface_artifact.md).
 
+### Running the notebook from local data or a downloaded artifact
+
+`notebooks/hole_similarity_research.ipynb` loads through
+`pipeline.modeling.artifact_loader`, so it works against **either** source with no
+code changes — set `ARTIFACT_ROOT` in the config cell (or leave it `None` to
+auto-detect):
+
+```powershell
+# pull the published dataset into a folder
+hf download davishelman/golf-data-research-artifacts --repo-type dataset --local-dir golf-data-research-artifacts
+```
+
+```python
+ARTIFACT_ROOT = None                              # auto-detect (local courses/_index, then artifact folders)
+ARTIFACT_ROOT = Path("..") / "courses" / "_index" # force local pipeline output
+ARTIFACT_ROOT = Path("golf-data-research-artifacts")  # force a downloaded HF artifact
+```
+
+The tabular, cluster, and similarity sections fully reproduce from **either**
+source. Visual side-by-sides need each hole's compact point cloud: **every** hole
+in local mode or a **full**-tier artifact, but only the **curated subset** in a
+*lite* artifact (the notebook skips missing holes with a message rather than
+erroring). Arbitrary-hole visual comparison requires the full local `courses/`
+tree or the full-tier artifact.
+
 ## Testing
 
 ```powershell

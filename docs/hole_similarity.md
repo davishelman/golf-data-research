@@ -202,6 +202,25 @@ show_similar(hole_id, n=10, exclude_same_course=False, same_par=False)  # neares
 compare_holes(query_hole_id, match_hole_id)                             # transposed feature diff
 ```
 
+### Data source: local pipeline output or a downloaded HF artifact
+
+The notebook loads through `pipeline.modeling.artifact_loader`, so it runs against
+**either** your local `courses/_index/` (full pipeline run) **or** a downloaded
+Hugging Face artifact folder. The first code cell selects the source:
+
+```python
+from pathlib import Path
+ARTIFACT_ROOT = None   # auto-detect: local courses/_index, then artifact folders
+# ARTIFACT_ROOT = Path("..") / "courses" / "_index"        # force local
+# ARTIFACT_ROOT = Path("golf-data-research-artifacts")     # force a downloaded artifact
+```
+
+The tabular/cluster/similarity sections reproduce from any source. Visual
+side-by-sides need each hole's compact point cloud — all holes locally or in a
+*full*-tier artifact, but only the curated subset in a *lite* artifact (the
+notebook's `viz_compare` helper skips missing holes with a message). Download +
+load details: [`docs/huggingface_artifact.md`](huggingface_artifact.md).
+
 Run (needs `matplotlib`):
 
 ```powershell

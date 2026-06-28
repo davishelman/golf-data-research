@@ -31,6 +31,8 @@ log = get_logger("modeling.visual")
 
 __all__ = [
     "load_compact_hole_points",
+    "load_compact_from_dir",
+    "available_compact_ids",
     "compact_points_to_df",
     "downsample_points",
     "compute_shared_limits",
@@ -123,6 +125,36 @@ def load_compact_hole_points(courses_root, hole_id: str) -> pd.DataFrame:
     return compact_points_to_df(payload)
 
 
+def load_compact_from_dir(compact_dir, hole_id: str) -> pd.DataFrame:
+    """Load a hole's compact point cloud from a flat ``<dir>/<hole_id>.json`` file.
+
+    Used for Hugging Face artifacts, whose compact clouds live under
+    ``point_clouds/compact/`` keyed by ``hole_id`` (not the per-course tree that
+    :func:`load_compact_hole_points` walks).
+    """
+    path = Path(compact_dir) / f"{hole_id}.json"
+    if not path.exists():
+        raise FileNotFoundError(f"compact point file not found for {hole_id}: {path}")
+    with open(path, "r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    return compact_points_to_df(payload)
+
+
+def available_compact_ids(compact_dir) -> set[str]:
+    """Return the set of ``hole_id``s with a compact point cloud in ``compact_dir``."""
+    d = Path(compact_dir)
+    if not d.exists():
+        return set()
+    return {p.stem for p in d.glob("*.json")}
+
+
+def _load_for_compare(hole_id: str, courses_root, compact_dir) -> pd.DataFrame:
+    """Load a hole's points from a flat compact dir (if given) or the courses tree."""
+    if compact_dir is not None:
+        return load_compact_from_dir(compact_dir, hole_id)
+    return load_compact_hole_points(courses_root, hole_id)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -212,11 +244,17 @@ def plot_hole_comparison(
     titles: Optional[Sequence[str]] = None,
     color_by: str = "label",
     max_points: int = 50_000,
+    compact_dir=None,
 ):
-    """Plot several holes side by side on a **shared x/y scale**. Returns the Figure."""
+    """Plot several holes side by side on a **shared x/y scale**. Returns the Figure.
+
+    Points come from ``compact_dir`` (a flat ``<hole_id>.json`` folder, e.g. a
+    Hugging Face artifact's ``point_clouds/compact/``) when given, otherwise from
+    the per-course tree under ``courses_root``.
+    """
     if not hole_ids:
         raise ValueError("hole_ids must be non-empty")
-    dfs = [load_compact_hole_points(courses_root, h) for h in hole_ids]
+    dfs = [_load_for_compare(h, courses_root, compact_dir) for h in hole_ids]
     xlim, ylim = compute_shared_limits(dfs)
     n = len(dfs)
 
@@ -264,12 +302,14 @@ def save_hole_comparison(
     titles: Optional[Sequence[str]] = None,
     color_by: str = "label",
     max_points: int = 50_000,
+    compact_dir=None,
 ) -> Path:
     """Render :func:`plot_hole_comparison` and save it to ``output_path`` (PNG)."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig = plot_hole_comparison(courses_root, hole_ids, titles=titles,
-                               color_by=color_by, max_points=max_points)
+                               color_by=color_by, max_points=max_points,
+                               compact_dir=compact_dir)
     fig.savefig(output_path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     log.info("saved hole comparison -> %s", output_path)

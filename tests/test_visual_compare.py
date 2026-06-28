@@ -11,9 +11,11 @@ import pytest
 
 from pipeline.constants import LABEL_NAMES
 from pipeline.modeling.visual_compare import (
+    available_compact_ids,
     compact_points_to_df,
     compute_shared_limits,
     downsample_points,
+    load_compact_from_dir,
     load_compact_hole_points,
     plot_hole_comparison,
     save_hole_comparison,
@@ -113,3 +115,39 @@ def test_save_creates_image(courses_root, tmp_path):
 def test_missing_hole_raises(courses_root):
     with pytest.raises(FileNotFoundError):
         load_compact_hole_points(courses_root, "nope__09")
+
+
+# --------------------------------------------------------------------------- #
+# Flat compact-dir loading (Hugging Face artifact mode)
+# --------------------------------------------------------------------------- #
+
+def _write_flat(compact_dir, slug, num, points) -> None:
+    compact_dir.mkdir(parents=True, exist_ok=True)
+    hid = f"{slug}__{num:02d}"
+    (compact_dir / f"{hid}.json").write_text(json.dumps(_payload(slug, num, points)),
+                                             encoding="utf-8")
+
+
+def test_load_compact_from_dir_and_availability(tmp_path):
+    cd = tmp_path / "compact"
+    _write_flat(cd, "alpha", 1, _grid(3, -5, 5, 0, 20))
+    assert available_compact_ids(cd) == {"alpha__01"}
+    df = load_compact_from_dir(cd, "alpha__01")
+    assert {"x", "y", "z", "label", "label_id"}.issubset(df.columns)
+    assert len(df) > 0
+    with pytest.raises(FileNotFoundError):
+        load_compact_from_dir(cd, "missing__02")
+
+
+def test_available_compact_ids_missing_dir(tmp_path):
+    assert available_compact_ids(tmp_path / "nope") == set()
+
+
+def test_plot_comparison_from_compact_dir(tmp_path):
+    import matplotlib.pyplot as plt
+    cd = tmp_path / "compact"
+    _write_flat(cd, "alpha", 1, _grid(3, -5, 5, 0, 20))
+    _write_flat(cd, "beta", 1, _grid(3, -8, 8, 0, 30))
+    fig = plot_hole_comparison(None, ["alpha__01", "beta__01"], compact_dir=cd)
+    assert fig is not None and len(fig.axes) >= 2
+    plt.close(fig)

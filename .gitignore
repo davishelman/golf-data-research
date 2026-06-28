@@ -73,5 +73,8 @@ hf_artifact/
 hf_artifact_lite/
 hf_artifact_full/
 
+# ---- Hugging Face artifact downloaded for the notebook (hf download --local-dir) ----
+golf-data-research-artifacts/
+
 # ---- Claude Code local ----
 .claude/settings.local.json

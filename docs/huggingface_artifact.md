@@ -136,59 +136,84 @@ if you also want it on the Hub, upload it under a `lite/` path
 
 ## Download / load later
 
-Single file:
+Download the whole dataset into a local folder with the `hf` CLI:
+
+```powershell
+hf download davishelman/golf-data-research-artifacts --repo-type dataset --local-dir golf-data-research-artifacts
+```
+
+Or fetch a single file / snapshot from Python:
 
 ```python
 import pandas as pd
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, snapshot_download
 
 path = hf_hub_download("davishelman/golf-data-research-artifacts",
                        "data/hole_features.parquet", repo_type="dataset")
 features = pd.read_parquet(path)
-```
 
-Whole dataset:
-
-```python
-from huggingface_hub import snapshot_download
 local = snapshot_download("davishelman/golf-data-research-artifacts", repo_type="dataset")
 print(local)  # folder containing data/, point_clouds/, metadata/
 ```
 
-## Run the notebook: local data vs downloaded HF data
+## Run the notebook: local data *or* a downloaded artifact
 
-`notebooks/hole_similarity_research.ipynb` reads from `courses/_index/`.
+`notebooks/hole_similarity_research.ipynb` no longer hard-codes `courses/_index`.
+It loads through `pipeline.modeling.artifact_loader.load_modeling_artifacts`,
+which understands **both** layouts:
 
-- **Local (you ran the pipeline):** the files already exist under
-  `courses/_index/` — just run the notebook.
-- **From the Hub (fresh clone, no pipeline run):** download the dataset and place
-  the tables where the notebook expects them:
+| Source | Layout | How to select |
+|---|---|---|
+| Local pipeline output | `courses/_index/hole_features.parquet` (tables in the root) | `ARTIFACT_ROOT = Path("..")/"courses"/"_index"` |
+| Downloaded HF artifact | `<root>/data/hole_features.parquet` (tables under `data/`) | `ARTIFACT_ROOT = Path("golf-data-research-artifacts")` |
+
+The first code cell of the notebook is the config cell:
 
 ```python
 from pathlib import Path
-import shutil
-from huggingface_hub import snapshot_download
-
-src = Path(snapshot_download("davishelman/golf-data-research-artifacts", repo_type="dataset"))
-dst = Path("courses/_index"); dst.mkdir(parents=True, exist_ok=True)
-for name in ["hole_features.parquet", "hole_features.csv", "hole_clusters.parquet",
-             "hole_similarity_v2.csv", "hole_similarity_examples.csv",
-             "all_holes.parquet", "all_courses_manifest.json"]:
-    f = src / "data" / name
-    if f.exists():
-        shutil.copy2(f, dst / name)
-
-# compact point clouds (for visual checks), if present:
-for j in (src / "point_clouds" / "compact").glob("*.json"):
-    slug, num = j.stem.rsplit("__", 1)
-    out = Path("courses") / slug / "holes" / f"hole_{int(num):02d}" / "features"
-    out.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(j, out / "hole_points_compact.json")
+ARTIFACT_ROOT = None   # auto-detect; or set one of the lines below
+# ARTIFACT_ROOT = Path("..") / "courses" / "_index"
+# ARTIFACT_ROOT = Path("golf-data-research-artifacts")
 ```
 
-The lite tier is enough to reproduce the notebook's **tabular and similarity**
-sections. Visual side-by-sides only work for holes whose compact point cloud is
-present (all of them in the full tier; the curated subset in lite).
+`None` auto-detects: it prefers local `courses/_index`, then common downloaded
+folders (`golf-data-research-artifacts`, `hf_artifact_lite`, and their `../`
+forms). The notebook prints which source it used:
+
+```text
+Using artifact source: local ../courses/_index
+Using artifact source: Hugging Face artifact at golf-data-research-artifacts
+```
+
+You can also load the tables yourself:
+
+```python
+from pipeline.modeling.artifact_loader import load_modeling_artifacts
+art = load_modeling_artifacts("golf-data-research-artifacts")  # or None to auto-detect
+art["features"]        # hole_features DataFrame (required)
+art["clusters"]        # cluster assignments + PCA coords (or None)
+art["similarity_v1"]   # hole_similarity_examples.csv (or None)
+art["similarity_v2"]   # hole_similarity_v2.csv (or None)
+art["manifest"], art["schema"], art["feature_dictionary"]   # optional metadata (or None)
+art["compact_dir"], art["courses_root"]                      # where visual checks read points
+```
+
+### What works in each mode
+
+The **tabular, cluster, and similarity** sections reproduce identically from any
+source — they only need `hole_features` (+ clusters). Visual side-by-sides need
+each hole's compact point cloud:
+
+- **Local pipeline / full-tier artifact** — every hole is available.
+- **Lite-tier artifact** — only the *curated* subset ships (the anchor hole
+  `augusta_national__01` and its v2 neighbours, plus a par-3 / water / terrain
+  sample). The notebook's `viz_compare` helper checks availability and **skips
+  missing holes with a friendly message** instead of crashing, so the default
+  query still renders. For arbitrary-hole visuals, use the full local `courses/`
+  tree or download the full-tier artifact.
+
+To switch back to local mode, set `ARTIFACT_ROOT = Path("..")/"courses"/"_index"`
+(or just delete/rename the downloaded folder and leave `ARTIFACT_ROOT = None`).
 
 ## Notes & concerns
 
