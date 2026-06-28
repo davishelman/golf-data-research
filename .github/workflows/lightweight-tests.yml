@@ -1,0 +1,39 @@
+name: Lightweight tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  modeling-tests:
+    name: Modeling, artifact, and visual tests
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHONPATH: .
+      MPLBACKEND: Agg
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install lightweight dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas pyarrow scikit-learn matplotlib pytest
+
+      - name: Verify package import
+        run: |
+          python -c "import pipeline; print('pipeline import ok')"
+
+      - name: Run lightweight tests
+        run: |
+          python -m pytest tests/test_modeling.py tests/test_visual_compare.py tests/test_hf_export.py tests/test_artifact_loader.py -q
