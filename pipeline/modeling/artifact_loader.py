@@ -130,6 +130,9 @@ def load_modeling_artifacts(root: PathLike | None = None) -> dict:
     * ``similarity_modes`` — ``{mode_name: DataFrame}`` from
       ``data/similarity_modes/*.csv`` (``{}`` if none shipped)
     * ``similarity_modes_dir`` — that folder's Path, or None
+    * ``presented_similarity`` — ``{name: DataFrame}`` from
+      ``data/presented_similarity/*.csv`` (golfer-facing; ``{}`` if none shipped)
+    * ``presented_similarity_dir`` — that folder's Path, or None
     * ``compact_dir`` — HF compact point-cloud dir, or None for local
     * ``courses_root`` — local ``courses/`` tree (for visual checks), or None
     """
@@ -157,6 +160,17 @@ def load_modeling_artifacts(root: PathLike | None = None) -> dict:
                 similarity_modes[csv.stem] = dfm
     similarity_modes_dir = modes_dir if modes_dir.exists() else None
 
+    # Optional presented (golf-plausibility-filtered) similarity CSVs. Same shape
+    # as similarity_modes; absent -> {} / None.
+    presented_dir = data_dir / "presented_similarity"
+    presented_similarity: dict[str, object] = {}
+    if presented_dir.exists():
+        for csv in sorted(presented_dir.glob("*.csv")):
+            dfp = _maybe_read(csv, pd.read_csv)
+            if dfp is not None:
+                presented_similarity[csv.stem] = dfp
+    presented_similarity_dir = presented_dir if presented_dir.exists() else None
+
     if kind == "hf_artifact":
         compact = resolved / "point_clouds" / "compact"
         compact_dir = compact if compact.exists() else None
@@ -181,6 +195,8 @@ def load_modeling_artifacts(root: PathLike | None = None) -> dict:
         "feature_dictionary": feature_dictionary,
         "similarity_modes": similarity_modes,          # {mode_name: DataFrame}, may be {}
         "similarity_modes_dir": similarity_modes_dir,  # Path or None
+        "presented_similarity": presented_similarity,          # {name: DataFrame}, may be {}
+        "presented_similarity_dir": presented_similarity_dir,  # Path or None
         "compact_dir": compact_dir,
         "courses_root": courses_root,
     }

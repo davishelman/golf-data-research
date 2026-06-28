@@ -11,6 +11,8 @@ Usage:
         --include-point-parquet      # build a Hugging Face upload folder
     python -m pipeline.modeling similarity-modes            # all golf modes -> CSVs
     python -m pipeline.modeling similarity-modes --mode off_the_tee
+    python -m pipeline.modeling presented-similarity        # golf-plausible recommendations
+    python -m pipeline.modeling presented-similarity --min-score 0.8 --allow-same-course
 """
 
 from __future__ import annotations
@@ -30,13 +32,20 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("command",
                    choices=["features", "similarity", "all", "visual-check",
-                            "hf-export", "similarity-modes"],
+                            "hf-export", "similarity-modes", "presented-similarity"],
                    help="Which step to run.")
     # similarity-modes options
     p.add_argument("--mode", default=None,
                    help="Single golf mode for 'similarity-modes' (default: all GOLF_MODES). "
                         "One of: overall_v2, off_the_tee, approach, green_complex, "
                         "hazard, terrain, shot_shape.")
+    # presented-similarity options (golf-plausibility layer; defaults are golf-safe)
+    p.add_argument("--min-score", type=float, default=0.75,
+                   help="Min plausibility score to present (presented-similarity; default 0.75).")
+    p.add_argument("--allow-same-course", action="store_true",
+                   help="presented-similarity: allow same-course matches (default: cross-course).")
+    p.add_argument("--allow-different-par", action="store_true",
+                   help="presented-similarity: allow different-par matches (default: same-par).")
     # hf-export options
     p.add_argument("--tier", choices=["lite", "full"], default="lite",
                    help="Hugging Face artifact tier (hf-export; default lite).")
@@ -143,6 +152,16 @@ def main(argv: list[str] | None = None) -> int:
             written = build_similarity_modes(
                 args.courses_root, modes=modes, n_neighbors=args.neighbors,
                 exclude_same_course=esc,
+            )
+            for k, v in written.items():
+                log.info("%s -> %s", k, v)
+        if args.command == "presented-similarity":
+            from .export_similarity import build_presented_similarity
+            written = build_presented_similarity(
+                args.courses_root, n_neighbors=args.neighbors,
+                require_same_par=not args.allow_different_par,
+                exclude_same_course=not args.allow_same_course,
+                min_score=args.min_score,
             )
             for k, v in written.items():
                 log.info("%s -> %s", k, v)

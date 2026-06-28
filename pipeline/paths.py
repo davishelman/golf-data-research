@@ -100,6 +100,10 @@ class IndexPaths:
     def similarity_modes_dir(self) -> Path:
         return self.root / "similarity_modes"
 
+    @property
+    def presented_similarity_dir(self) -> Path:
+        return self.root / "presented_similarity"
+
 
 # Legacy constant kept for backward compatibility with older callers.
 ALL_HOLES_CSV: Path = IndexPaths.for_root().all_holes_csv

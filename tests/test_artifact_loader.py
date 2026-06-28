@@ -168,3 +168,40 @@ def test_similarity_modes_absent_is_empty(tmp_path):
     art = load_modeling_artifacts(root)
     assert art["similarity_modes"] == {}
     assert art["similarity_modes_dir"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Presented similarity CSVs exposed by the loader
+# --------------------------------------------------------------------------- #
+
+def _write_presented(data_dir: Path, name: str = "overall_v2") -> None:
+    pdir = data_dir / "presented_similarity"
+    pdir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({
+        "query_hole_id": ["c__01"], "similar_hole_id": ["c__02"],
+        "presented_rank": [1], "plausibility_score": [1.0], "is_presentable": [True],
+    }).to_csv(pdir / f"{name}.csv", index=False)
+
+
+def test_hf_artifact_exposes_presented_similarity(tmp_path):
+    root = _make_hf(tmp_path / "artifact")
+    _write_presented(root / "data")
+    art = load_modeling_artifacts(root)
+    assert art["presented_similarity_dir"] == root / "data" / "presented_similarity"
+    assert set(art["presented_similarity"]) == {"overall_v2"}
+    assert len(art["presented_similarity"]["overall_v2"]) == 1
+
+
+def test_local_index_exposes_presented_similarity(tmp_path):
+    root = _make_local(tmp_path / "_index")
+    _write_presented(root)  # local: presented dir in the root
+    art = load_modeling_artifacts(root)
+    assert art["presented_similarity_dir"] == root / "presented_similarity"
+    assert set(art["presented_similarity"]) == {"overall_v2"}
+
+
+def test_presented_similarity_absent_is_empty(tmp_path):
+    root = _make_hf(tmp_path / "artifact")
+    art = load_modeling_artifacts(root)
+    assert art["presented_similarity"] == {}
+    assert art["presented_similarity_dir"] is None

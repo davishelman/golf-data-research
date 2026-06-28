@@ -205,7 +205,8 @@ def test_schema_and_feature_dictionary(tmp_path: Path):
 
 def test_lite_copies_expected_files(tmp_path: Path):
     courses_root = make_courses(tmp_path)
-    _write_mode_csvs(courses_root)  # so the artifact is complete (nothing missing)
+    _write_mode_csvs(courses_root)       # so the artifact is complete (nothing missing)
+    _write_presented_csv(courses_root)
     out = tmp_path / "art"
     summary = build_hf_artifact("lite", out, courses_root=courses_root)
 
@@ -333,3 +334,39 @@ def test_hf_export_skips_mode_csvs_when_absent(tmp_path: Path):
     assert not (out / "data" / "similarity_modes").exists()
     assert summary["similarity_mode_csvs"] == 0
     assert "data/similarity_modes/*.csv" in summary["missing_optional_inputs"]
+
+
+# --------------------------------------------------------------------------- #
+# Presented similarity CSVs (data/presented_similarity/*.csv)
+# --------------------------------------------------------------------------- #
+
+def _write_presented_csv(courses_root: Path, name: str = "overall_v2") -> None:
+    pd_dir = IndexPaths.for_root(courses_root).presented_similarity_dir
+    pd_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({
+        "query_hole_id": ["course_a__01"], "similar_hole_id": ["course_b__01"],
+        "similarity_mode": ["overall_v2"], "raw_rank": [1], "raw_distance": [0.4],
+        "plausibility_score": [1.0], "is_presentable": [True],
+        "plausibility_reasons": [""], "presented_rank": [1],
+    }).to_csv(pd_dir / f"{name}.csv", index=False)
+
+
+def test_hf_export_includes_presented_when_present(tmp_path: Path):
+    courses_root = make_courses(tmp_path)
+    _write_presented_csv(courses_root)
+    out = tmp_path / "art"
+    summary = build_hf_artifact("lite", out, courses_root=courses_root)
+
+    assert (out / "data" / "presented_similarity" / "overall_v2.csv").exists()
+    assert summary["presented_similarity_csvs"] == 1
+    assert "data/presented_similarity/*.csv" not in summary["missing_optional_inputs"]
+
+
+def test_hf_export_skips_presented_when_absent(tmp_path: Path):
+    courses_root = make_courses(tmp_path)  # no presented_similarity dir
+    out = tmp_path / "art"
+    summary = build_hf_artifact("lite", out, courses_root=courses_root)
+
+    assert not (out / "data" / "presented_similarity").exists()
+    assert summary["presented_similarity_csvs"] == 0
+    assert "data/presented_similarity/*.csv" in summary["missing_optional_inputs"]
