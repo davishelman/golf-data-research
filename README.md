@@ -1,5 +1,7 @@
 # GolfDataScience
 
+![Lightweight tests](https://github.com/davishelman/golf-data-research/actions/workflows/lightweight-tests.yml/badge.svg)
+
 An enterprise-grade geospatial pipeline that ingests golf courses (lat/lon +
 metadata) and produces, per hole: terrain statistics, clipped/reprojected DEM
 rasters, and a **tee-relative, tee→green-aligned, labeled 3D point cloud**
