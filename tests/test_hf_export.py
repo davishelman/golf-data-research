@@ -205,6 +205,7 @@ def test_schema_and_feature_dictionary(tmp_path: Path):
 
 def test_lite_copies_expected_files(tmp_path: Path):
     courses_root = make_courses(tmp_path)
+    _write_mode_csvs(courses_root)  # so the artifact is complete (nothing missing)
     out = tmp_path / "art"
     summary = build_hf_artifact("lite", out, courses_root=courses_root)
 
@@ -290,3 +291,45 @@ def test_invalid_tier_raises(tmp_path: Path):
     courses_root = make_courses(tmp_path)
     with pytest.raises(ValueError, match="tier"):
         build_hf_artifact("medium", tmp_path / "art", courses_root=courses_root)
+
+
+# --------------------------------------------------------------------------- #
+# Per-mode similarity CSVs (data/similarity_modes/*.csv)
+# --------------------------------------------------------------------------- #
+
+def _write_mode_csvs(courses_root: Path, modes=("overall_v2", "hazard")) -> None:
+    """Drop synthetic per-mode CSVs into courses/_index/similarity_modes/."""
+    md = IndexPaths.for_root(courses_root).similarity_modes_dir
+    md.mkdir(parents=True, exist_ok=True)
+    for mode in modes:
+        pd.DataFrame({
+            "similarity_mode": [mode], "query_hole_id": ["course_a__01"],
+            "query_course_slug": ["course_a"], "query_hole_number": [1],
+            "similar_hole_id": ["course_b__01"], "similar_course_slug": ["course_b"],
+            "similar_hole_number": [1], "rank": [1], "distance": [0.4],
+            "query_length_m": [410.0], "similar_length_m": [395.0],
+            "length_diff_m": [15.0], "same_par": [True], "same_course": [False],
+        }).to_csv(md / f"{mode}.csv", index=False)
+
+
+def test_hf_export_includes_mode_csvs_when_present(tmp_path: Path):
+    courses_root = make_courses(tmp_path)
+    _write_mode_csvs(courses_root, modes=("overall_v2", "hazard", "terrain"))
+    out = tmp_path / "art"
+    summary = build_hf_artifact("lite", out, courses_root=courses_root)
+
+    dest = out / "data" / "similarity_modes"
+    assert {p.name for p in dest.glob("*.csv")} == {
+        "overall_v2.csv", "hazard.csv", "terrain.csv"}
+    assert summary["similarity_mode_csvs"] == 3
+    assert "data/similarity_modes/*.csv" not in summary["missing_optional_inputs"]
+
+
+def test_hf_export_skips_mode_csvs_when_absent(tmp_path: Path):
+    courses_root = make_courses(tmp_path)  # no similarity_modes dir created
+    out = tmp_path / "art"
+    summary = build_hf_artifact("lite", out, courses_root=courses_root)
+
+    assert not (out / "data" / "similarity_modes").exists()
+    assert summary["similarity_mode_csvs"] == 0
+    assert "data/similarity_modes/*.csv" in summary["missing_optional_inputs"]
