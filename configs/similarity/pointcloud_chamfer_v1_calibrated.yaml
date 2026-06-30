@@ -1,0 +1,68 @@
+# v2.5 point-cloud Chamfer similarity — calibrated baseline.
+#
+# Additive recalibration of `pointcloud_chamfer_v1.yaml` informed by the
+# calibration analysis (pipeline.modeling.pointcloud.calibrate). It is a NEW
+# config and does not change the baseline's behavior.
+#
+# Two findings drive the changes:
+#   1. Elevation is structurally double-counted: the Chamfer z_weight (2.0)
+#      already amplifies vertical offsets on every surface, and the explicit
+#      tee->green elevation penalty adds elevation on top. This config lowers
+#      z_weight to 1.5 and the elevation penalty weight to 0.05 so elevation is
+#      counted strongly but not twice.
+#   2. Missing-surface penalties for bunker/water can dominate otherwise-close
+#      pairs. They are softened (bunker 40->25, water 50->30) so a single missing
+#      hazard no longer swamps real surface similarity, while still ranking a
+#      hole that *has* the hazard ahead of one that doesn't.
+model_name: pointcloud_chamfer
+model_version: v2_5_chamfer_v1
+config_name: baseline_calibrated
+
+candidate_filter:
+  require_same_par: true
+  yardage_windows:
+    par_3:
+      absolute_yards: 25
+      percentage: 0.12
+    par_4:
+      absolute_yards: 40
+      percentage: 0.10
+    par_5:
+      absolute_yards: 60
+      percentage: 0.10
+
+required_surfaces:
+  - tee
+  - green
+  - fairway
+
+surface_weights:
+  fairway: 0.30
+  green: 0.25
+  bunker: 0.25
+  water: 0.15
+  tee: 0.05
+
+surface_missing_penalties:
+  fairway: 999.0
+  green: 999.0
+  tee: 999.0
+  bunker: 25.0
+  water: 30.0
+
+point_budgets:
+  fairway: 1500
+  green: 600
+  bunker: 800
+  water: 800
+  tee: 200
+
+distance_scaling:
+  x_weight: 1.0
+  y_weight: 1.0
+  z_weight: 1.5
+
+penalties:
+  par_mismatch: 999.0
+  yardage_weight: 0.15
+  tee_to_green_elevation_weight: 0.05
