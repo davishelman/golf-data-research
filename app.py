@@ -266,7 +266,48 @@ else:
                     st.pyplot(fig)
 
 # --------------------------------------------------------------------------- #
-# 6. Dataset summary
+# 6. v2.5 — how the presets compare for this hole
+# --------------------------------------------------------------------------- #
+if _pc_configs and len(_pc_configs) > 1:
+    st.subheader("6. v2.5 — how the presets compare for this hole")
+    pc_all = _load_pc_results(str(_pc_root))
+    cmp = pcdemo.compare_configs_for_hole(pc_all, query_pc_id, top_n)
+
+    best = cmp["best_per_config"]
+    best_rows = [
+        {"preset": name,
+         "top_match": (v[0] if v else "—"),
+         "total_score": (round(v[1], 3) if v else None)}
+        for name, v in sorted(best.items())
+    ]
+    st.markdown("**#1 match per preset**")
+    st.dataframe(pd.DataFrame(best_rows), width="stretch", hide_index=True)
+
+    shared = cmp["shared_candidates"]
+    if shared:
+        st.markdown(
+            "**Robust matches** — in the top-"
+            f"{top_n} of *every* preset (similarity that survives re-weighting):")
+        st.write(", ".join(f"`{c}`" for c in shared))
+    else:
+        st.caption("No candidate appears in the top-N of every preset for this hole.")
+
+    rc = cmp["rank_comparison"]
+    if not rc.empty:
+        st.markdown("**Per-candidate rank across presets** (lower = better)")
+        st.dataframe(rc, width="stretch", hide_index=True)
+
+    ov = cmp["overlap"]
+    if not ov.empty:
+        st.markdown("**Preset agreement** — Jaccard overlap of top-N candidate sets")
+        st.dataframe(ov[["config_a", "config_b", "overlap_count",
+                         "union_count", "jaccard_similarity"]],
+                     width="stretch", hide_index=True)
+    st.caption("A preset that disagrees a lot (low Jaccard) is an *opinionated* lens "
+               "— e.g. hazard-heavy re-weights bunkers/water — not a broken one.")
+
+# --------------------------------------------------------------------------- #
+# 7. Dataset summary
 # --------------------------------------------------------------------------- #
 with st.expander("Dataset summary"):
     s = du.dataset_summary(art)
@@ -281,7 +322,7 @@ with st.expander("Dataset summary"):
                + (f"  ·  v2.5 results: {_pc_root}" if _pc_root else "  ·  no v2.5 results"))
 
 # --------------------------------------------------------------------------- #
-# 7. Interpretation notes
+# 8. Interpretation notes
 # --------------------------------------------------------------------------- #
 with st.expander("How to read this"):
     st.markdown(

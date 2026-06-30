@@ -34,7 +34,12 @@ import pandas as pd
 from ...logging_config import get_logger
 from .export_similarity import RESULTS_FILENAME
 from .schemas import parse_pc_hole_id
-from .validate_similarity import VALIDATION_DIRNAME, top_matches_for_target
+from .validate_similarity import (
+    VALIDATION_DIRNAME,
+    config_overlap_summary,
+    rank_comparison,
+    top_matches_for_target,
+)
 
 log = get_logger("modeling.pointcloud.demo")
 
@@ -170,6 +175,45 @@ def feature_id_for_pc_hole(pc_hole_id: str) -> str:
     return f"{slug}__{number:02d}"
 
 
+def compare_configs_for_hole(
+    results_by_config: dict[str, pd.DataFrame], target_hole_id: str, top_n: int = 10,
+) -> dict:
+    """Compare how every v2.5 config ranks the field for one hole.
+
+    Returns a dict with:
+
+    * ``best_per_config`` — ``{config_name: (candidate_hole_id, total_score)}`` for
+      each config's #1 match (``None`` when the hole has no matches there).
+    * ``shared_candidates`` — candidate ids that appear in the top-``top_n`` of
+      *every* config (the robust, weighting-independent matches).
+    * ``rank_comparison`` — per-candidate rank/score across configs (DataFrame).
+    * ``overlap`` — pairwise Jaccard overlap of the configs' top-``top_n`` sets.
+    """
+    top_by: dict[str, pd.DataFrame] = {
+        name: top_matches_for_target(df, target_hole_id, top_n, name)
+        for name, df in results_by_config.items()
+    }
+
+    best_per_config: dict[str, Optional[tuple[str, float]]] = {}
+    candidate_sets: list[set[str]] = []
+    for name, tm in top_by.items():
+        if tm.empty:
+            best_per_config[name] = None
+        else:
+            first = tm.iloc[0]
+            best_per_config[name] = (str(first["candidate_hole_id"]), float(first["total_score"]))
+            candidate_sets.append(set(tm["candidate_hole_id"]))
+
+    shared = sorted(set.intersection(*candidate_sets)) if candidate_sets else []
+
+    return {
+        "best_per_config": best_per_config,
+        "shared_candidates": shared,
+        "rank_comparison": rank_comparison(top_by),
+        "overlap": config_overlap_summary(top_by, top_n),
+    }
+
+
 def pointcloud_summary(root: PathLike) -> dict:
     """Headline counts for a dataset-summary panel."""
     results = load_pointcloud_results(root)
@@ -195,5 +239,6 @@ __all__ = [
     "top_matches_for_hole",
     "available_target_holes",
     "feature_id_for_pc_hole",
+    "compare_configs_for_hole",
     "pointcloud_summary",
 ]
