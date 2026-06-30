@@ -104,6 +104,11 @@ class IndexPaths:
     def presented_similarity_dir(self) -> Path:
         return self.root / "presented_similarity"
 
+    @property
+    def pointcloud_similarity_dir(self) -> Path:
+        """Root for v2.5 point-cloud similarity batch outputs (per-config subdirs)."""
+        return self.root / "pointcloud_similarity"
+
 
 # Legacy constant kept for backward compatibility with older callers.
 ALL_HOLES_CSV: Path = IndexPaths.for_root().all_holes_csv
