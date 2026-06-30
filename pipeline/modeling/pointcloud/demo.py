@@ -1,39 +1,55 @@
 """Demo data layer for surfacing v2.5 point-cloud similarity in an app.
 
-Pure, Streamlit-free functions that read the v2.5 outputs an artifact bundle
-ships under ``data/pointcloud_similarity/<config_name>/`` (see
-:mod:`pipeline.modeling.pointcloud.artifact_export`) and return small tables a UI
-can render. Keeping this logic here — mirroring how ``pipeline.modeling.demo_utils``
-backs the existing Streamlit app — means the v2.5 view is unit-testable without
-importing streamlit and without breaking the v2 views.
+Pure, Streamlit-free functions that read the v2.5 batch outputs and return small
+tables a UI can render. Keeping this logic here — mirroring how
+``pipeline.modeling.demo_utils`` backs the existing Streamlit app — means the
+v2.5 view is unit-testable without importing streamlit and without breaking the
+v2 views.
+
+Two layouts are supported transparently (see :func:`resolve_pointcloud_dir`):
+
+* **Hugging Face bundle** — ``<root>/data/pointcloud_similarity/<config>/`` (what
+  :mod:`pipeline.modeling.pointcloud.artifact_export` writes).
+* **Local index** — ``<root>/pointcloud_similarity/<config>/`` (i.e. point the
+  root at ``courses/_index`` to read the batch outputs in place, no export step).
 
 Wiring into the Streamlit ``app.py`` is a thin addition, e.g.::
 
     from pipeline.modeling.pointcloud import demo as pcdemo
-    configs = pcdemo.list_pointcloud_configs(root)
-    if configs:
+    root = pcdemo.discover_pointcloud_root([artifact_root, "courses/_index"])
+    if root is not None:
+        configs = pcdemo.list_pointcloud_configs(root)
         cfg = st.selectbox("v2.5 config", configs)
         results = pcdemo.load_pointcloud_results(root)[cfg]
-        st.dataframe(pcdemo.top_matches_for_hole(results, query_id, top_n))
+        st.dataframe(pcdemo.top_matches_for_hole(results, query_pc_id, top_n))
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Iterable, Optional, Union
 
 import pandas as pd
 
 from ...logging_config import get_logger
 from .export_similarity import RESULTS_FILENAME
-from .validate_similarity import TOP_MATCHES_COLUMNS, top_matches_for_target
+from .schemas import parse_pc_hole_id
+from .validate_similarity import (
+    VALIDATION_DIRNAME,
+    config_overlap_summary,
+    rank_comparison,
+    top_matches_for_target,
+)
 
 log = get_logger("modeling.pointcloud.demo")
 
 PathLike = Union[str, Path]
 
-#: Where the artifact bundle stores v2.5 results (matches artifact_export).
+#: Where an HF bundle stores v2.5 results (matches artifact_export.ARTIFACT_SUBPATH).
 POINTCLOUD_SUBPATH = "data/pointcloud_similarity"
+
+#: Relative locations checked under a root, most-specific (HF bundle) first.
+_CANDIDATE_SUBPATHS: tuple[str, ...] = ("data/pointcloud_similarity", "pointcloud_similarity")
 
 #: Display columns for a UI table (a friendly subset of the full results).
 DISPLAY_COLUMNS: tuple[str, ...] = (
@@ -43,30 +59,87 @@ DISPLAY_COLUMNS: tuple[str, ...] = (
 )
 
 
+# --------------------------------------------------------------------------- #
+# Location resolution
+# --------------------------------------------------------------------------- #
+
 def pointcloud_dir(artifact_root: PathLike) -> Path:
-    """The ``data/pointcloud_similarity`` dir under an artifact root."""
+    """The HF-bundle ``data/pointcloud_similarity`` dir under an artifact root.
+
+    Kept for backward compatibility; prefer :func:`resolve_pointcloud_dir`, which
+    also recognizes the local-index layout.
+    """
     return Path(artifact_root) / POINTCLOUD_SUBPATH
 
 
-def list_pointcloud_configs(artifact_root: PathLike) -> list[str]:
-    """Config names available in the artifact (sorted), or ``[]`` if none."""
-    root = pointcloud_dir(artifact_root)
-    if not root.exists():
-        return []
-    return sorted(
-        d.name for d in root.iterdir()
-        if d.is_dir() and (d / RESULTS_FILENAME).exists()
+def _has_configs(directory: Path) -> bool:
+    return directory.is_dir() and any(
+        d.is_dir() and d.name != VALIDATION_DIRNAME and (d / RESULTS_FILENAME).exists()
+        for d in directory.iterdir()
     )
 
 
-def load_pointcloud_results(artifact_root: PathLike) -> dict[str, pd.DataFrame]:
-    """Load ``{config_name: results_df}`` for every v2.5 config in the artifact."""
-    root = pointcloud_dir(artifact_root)
+def resolve_pointcloud_dir(root: PathLike) -> Optional[Path]:
+    """First v2.5 results dir under ``root`` that actually contains configs.
+
+    Checks ``<root>/data/pointcloud_similarity`` then ``<root>/pointcloud_similarity``;
+    also accepts ``root`` itself already being a ``pointcloud_similarity`` dir.
+    Returns ``None`` if no config outputs are found.
+    """
+    root = Path(root)
+    if _has_configs(root):
+        return root
+    for sub in _CANDIDATE_SUBPATHS:
+        cand = root / sub
+        if _has_configs(cand):
+            return cand
+    return None
+
+
+def discover_pointcloud_root(roots: Iterable[PathLike]) -> Optional[Path]:
+    """First resolvable v2.5 results dir across several candidate roots."""
+    for r in roots:
+        if r is None:
+            continue
+        resolved = resolve_pointcloud_dir(r)
+        if resolved is not None:
+            return resolved
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# Loading
+# --------------------------------------------------------------------------- #
+
+def list_pointcloud_configs(root: PathLike) -> list[str]:
+    """Config names available under ``root`` (sorted), or ``[]`` if none.
+
+    ``root`` may be an artifact root, a local index, or a resolved
+    ``pointcloud_similarity`` dir.
+    """
+    resolved = resolve_pointcloud_dir(root)
+    if resolved is None:
+        return []
+    return sorted(
+        d.name for d in resolved.iterdir()
+        if d.is_dir() and d.name != VALIDATION_DIRNAME and (d / RESULTS_FILENAME).exists()
+    )
+
+
+def load_pointcloud_results(root: PathLike) -> dict[str, pd.DataFrame]:
+    """Load ``{config_name: results_df}`` for every v2.5 config under ``root``."""
+    resolved = resolve_pointcloud_dir(root)
+    if resolved is None:
+        return {}
     out: dict[str, pd.DataFrame] = {}
-    for name in list_pointcloud_configs(artifact_root):
-        out[name] = pd.read_csv(root / name / RESULTS_FILENAME)
+    for name in list_pointcloud_configs(root):
+        out[name] = pd.read_csv(resolved / name / RESULTS_FILENAME)
     return out
 
+
+# --------------------------------------------------------------------------- #
+# Per-hole views
+# --------------------------------------------------------------------------- #
 
 def top_matches_for_hole(
     results: pd.DataFrame, target_hole_id: str, top_n: int = 10,
@@ -91,9 +164,59 @@ def available_target_holes(results: pd.DataFrame) -> list[str]:
     return sorted(results["target_hole_id"].astype(str).unique())
 
 
-def pointcloud_summary(artifact_root: PathLike) -> dict:
+def feature_id_for_pc_hole(pc_hole_id: str) -> str:
+    """Map a v2.5 id (``slug:hole_number``) to the v2 feature/compact id (``slug__NN``).
+
+    The v2 tables and compact point clouds use a zero-padded, double-underscore id
+    (``augusta_national__01``); v2.5 uses ``augusta_national:1``. This lets the UI
+    cross-reference a v2.5 match back to v2 metadata / point-cloud visuals.
+    """
+    slug, number = parse_pc_hole_id(pc_hole_id)
+    return f"{slug}__{number:02d}"
+
+
+def compare_configs_for_hole(
+    results_by_config: dict[str, pd.DataFrame], target_hole_id: str, top_n: int = 10,
+) -> dict:
+    """Compare how every v2.5 config ranks the field for one hole.
+
+    Returns a dict with:
+
+    * ``best_per_config`` — ``{config_name: (candidate_hole_id, total_score)}`` for
+      each config's #1 match (``None`` when the hole has no matches there).
+    * ``shared_candidates`` — candidate ids that appear in the top-``top_n`` of
+      *every* config (the robust, weighting-independent matches).
+    * ``rank_comparison`` — per-candidate rank/score across configs (DataFrame).
+    * ``overlap`` — pairwise Jaccard overlap of the configs' top-``top_n`` sets.
+    """
+    top_by: dict[str, pd.DataFrame] = {
+        name: top_matches_for_target(df, target_hole_id, top_n, name)
+        for name, df in results_by_config.items()
+    }
+
+    best_per_config: dict[str, Optional[tuple[str, float]]] = {}
+    candidate_sets: list[set[str]] = []
+    for name, tm in top_by.items():
+        if tm.empty:
+            best_per_config[name] = None
+        else:
+            first = tm.iloc[0]
+            best_per_config[name] = (str(first["candidate_hole_id"]), float(first["total_score"]))
+            candidate_sets.append(set(tm["candidate_hole_id"]))
+
+    shared = sorted(set.intersection(*candidate_sets)) if candidate_sets else []
+
+    return {
+        "best_per_config": best_per_config,
+        "shared_candidates": shared,
+        "rank_comparison": rank_comparison(top_by),
+        "overlap": config_overlap_summary(top_by, top_n),
+    }
+
+
+def pointcloud_summary(root: PathLike) -> dict:
     """Headline counts for a dataset-summary panel."""
-    results = load_pointcloud_results(artifact_root)
+    results = load_pointcloud_results(root)
     return {
         "configs": list(results),
         "n_configs": len(results),
@@ -109,9 +232,13 @@ __all__ = [
     "POINTCLOUD_SUBPATH",
     "DISPLAY_COLUMNS",
     "pointcloud_dir",
+    "resolve_pointcloud_dir",
+    "discover_pointcloud_root",
     "list_pointcloud_configs",
     "load_pointcloud_results",
     "top_matches_for_hole",
     "available_target_holes",
+    "feature_id_for_pc_hole",
+    "compare_configs_for_hole",
     "pointcloud_summary",
 ]

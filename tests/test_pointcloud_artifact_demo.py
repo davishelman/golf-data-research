@@ -173,3 +173,47 @@ def test_pointcloud_summary(tmp_path):
     assert summary["n_configs"] == 2
     assert summary["rows_by_config"]["baseline"] == 3
     assert summary["targets_by_config"]["baseline"] == 2  # two distinct targets
+
+
+# --- #11/#23 layout resolution (HF bundle vs local index) ------------------ #
+
+def test_resolve_pointcloud_dir_hf_bundle(tmp_path):
+    artifact, _ = _built_artifact(tmp_path)
+    resolved = pcdemo.resolve_pointcloud_dir(artifact)
+    assert resolved == artifact / "data" / "pointcloud_similarity"
+
+
+def test_resolve_pointcloud_dir_local_index(tmp_path):
+    # Local-index layout: <root>/pointcloud_similarity/<config>/ (no data/ prefix).
+    cr, _ = _courses_root_with_two_configs(tmp_path)
+    index_root = cr / "_index"
+    resolved = pcdemo.resolve_pointcloud_dir(index_root)
+    assert resolved == index_root / "pointcloud_similarity"
+    assert pcdemo.list_pointcloud_configs(index_root) == ["baseline", "hazard_heavy"]
+
+
+def test_resolve_pointcloud_dir_none_when_absent(tmp_path):
+    assert pcdemo.resolve_pointcloud_dir(tmp_path / "nothing") is None
+    assert pcdemo.list_pointcloud_configs(tmp_path / "nothing") == []
+
+
+def test_discover_pointcloud_root_picks_first_resolvable(tmp_path):
+    cr, _ = _courses_root_with_two_configs(tmp_path)
+    found = pcdemo.discover_pointcloud_root([
+        None, tmp_path / "nope", cr / "_index", tmp_path / "also_nope",
+    ])
+    assert found == cr / "_index" / "pointcloud_similarity"
+
+
+def test_load_results_from_local_index(tmp_path):
+    cr, target = _courses_root_with_two_configs(tmp_path)
+    results = pcdemo.load_pointcloud_results(cr / "_index")
+    assert set(results) == {"baseline", "hazard_heavy"}
+    top = pcdemo.top_matches_for_hole(results["baseline"], target, top_n=10)
+    assert list(top["candidate_hole_id"]) == ["c1:1", "c2:1"]
+
+
+def test_feature_id_for_pc_hole():
+    assert pcdemo.feature_id_for_pc_hole("augusta_national:1") == "augusta_national__01"
+    assert pcdemo.feature_id_for_pc_hole("augusta_national:13") == "augusta_national__13"
+    assert pcdemo.feature_id_for_pc_hole("pebble_beach_golf_links:18") == "pebble_beach_golf_links__18"
