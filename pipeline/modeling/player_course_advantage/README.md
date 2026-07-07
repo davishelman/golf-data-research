@@ -22,6 +22,8 @@ Built so far — the **backtest remains deferred**:
   breakdowns of *why* a score came out the way it did.
 - **#34** — batch tournament-field ranking (`batch.py`): rank a whole field for a
   course, Python API + CLI.
+- **#44 / #45** — artifact export/load (`artifact_export.py`) + an end-to-end
+  synthetic smoke test proving the full pipeline runs offline.
 
 Links:
 
@@ -39,6 +41,8 @@ Links:
   (`explain_player_course`, `contribution_rows`, `PlayerCourseExplanation`).
 - Batch field ranking: [`batch.py`](batch.py)
   (`score_tournament_field`, `rank_field`, `export_field_ranking`, CLI `main`).
+- Artifact export/load: [`artifact_export.py`](artifact_export.py)
+  (`assemble_field_outputs`, `export_advantage_run`, `load_advantage_run`).
 
 ## Similar-hole loader (#32)
 
@@ -131,6 +135,38 @@ python -m pipeline.modeling.player_course_advantage.batch \
 `export_field_ranking(...)` writes `player_rankings.csv` + a `manifest.json`;
 generated outputs live under `data/player_course_advantage/` and are gitignored.
 Per-player *why* comes from the #39 diagnostics module.
+
+## Artifacts (#44) and the end-to-end smoke test (#45)
+
+```python
+from pipeline.modeling.player_course_advantage import (
+    assemble_field_outputs, export_advantage_run, load_advantage_run,
+)
+
+outs = assemble_field_outputs(history, sim, field, "augusta_national", 2024)
+run = export_advantage_run(
+    outs["rankings"], hole_details=outs["hole_details"], diagnostics=outs["diagnostics"],
+    target_course_slug="augusta_national", config_name="baseline",
+    predict_season=2024, params=DEFAULT_PARAMS,
+)
+loaded = load_advantage_run(run.run_dir)
+```
+
+Run layout under `data/player_course_advantage/<run_id>/` (gitignored):
+
+```
+player_rankings.csv       one row per player (batch ranking)
+player_hole_details.csv   one row per (player, target hole)
+diagnostics.csv           per (player, target hole, similar hole) contributions
+backtest_summary.csv      optional — written only when #35 supplies it
+parameters.json           AdvantageParams + aggregate mode
+manifest.json             run id, model version, timestamps, input/output counts
+```
+
+Only ids/scores/diagnostics are written — **never raw point-cloud geometry**
+(guarded on export). The #45 smoke test exercises the whole chain (fake v2.5 CSV
+→ loader → scorer → ranking → diagnostics → export/load) offline, with no real
+`courses/` outputs, no network, and no Streamlit.
 
 ## Experimental defaults
 
