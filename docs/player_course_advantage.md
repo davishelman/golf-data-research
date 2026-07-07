@@ -114,16 +114,20 @@ columns, so fallbacks are an explicit opt-in).
 
 ## 7. Recency weighting
 
-Older seasons matter less. With decay base **`m`** and occurrence age in seasons
-`age = predict_season - y(o)`:
+Older seasons matter less. Because only strictly-past seasons are eligible
+(`y(o) < predict_season`, see [§10](#10-lookahead-leakage)), season-level age is
+measured from the **immediately prior** season:
 
 ```
-recency_weight(y(o)) = m ** age        # age 0 (most recent season) -> weight 1.0
+age = (predict_season - 1) - y(o)
+recency_weight(y(o)) = m ** age        # prior season (age 0) -> weight 1.0
 ```
 
-Only occurrences within the lookback window `W` are included at all
-(`0 <= age < W`). `m = 1` disables decay (flat window); smaller `m` fades the
-past faster.
+Eligible years are `predict_season - W <= y(o) < predict_season`
+(i.e. `0 <= age < W`). `m = 1` disables decay (flat window); smaller `m` fades the
+past faster. A future **event-date** implementation can apply a stricter *date*
+cutoff so same-season prior starts can be admitted up to the event date without
+leakage; the season-level rule here is the conservative default.
 
 ## 8. Player-hole and player-course formulas
 
@@ -220,12 +224,13 @@ scorer share one source of truth. **Experimental** — tune on real data later.
 Defined and enforced in
 `pipeline/modeling/player_course_advantage/schema.py`.
 
-**Grain:** exactly one row per **player / tournament / year / round / hole**
-occurrence. Duplicate rows on that key are a hard validation error (they would
-double-count a scoring event).
+**Grain:** exactly one row per **player / tournament / year / round / course /
+hole** occurrence. Duplicate rows on that key are a hard validation error (they
+would double-count a scoring event).
 
 **Occurrence key** (`KEY_COLUMNS`): `player_id`, `tournament_id`, `year`,
-`round`, `hole_number`.
+`round`, `course_slug`, `hole_number`. `course_slug` is part of the key so
+multi-course events (e.g. rotating venues) and hole identity are explicit.
 
 ### Required columns (`REQUIRED_COLUMNS`)
 
@@ -265,10 +270,16 @@ computable without falling back to a weaker metric.
 
 Lightweight, pure-pandas, no real-data dependency. Accumulates **all** problems,
 then raises `SchemaError` (with `.errors`) or returns a `ValidationReport`.
-Checks: required columns present, no null keys, no duplicate occurrences, plausible
-`year`/`round`/`hole_number`/`par` ranges, `player_score ≥ 1`, id-shape checks for
-`hole_id_v25` (and `hole_id_v2` if present), and — when a `field_adjusted_score`
-column is supplied — that it equals `field_avg_score - player_score`.
+Checks: required columns present; **no nulls in any required column** (key columns
+reported separately); no duplicate occurrences; plausible
+`year`/`round`/`hole_number`/`par` ranges; `player_score` and `field_avg_score`
+**numeric, non-null, and ≥ 1** (non-numeric values are reported, not silently
+coerced); `hole_id_v25` (and `hole_id_v2` if present) match their id **shape** and
+are **consistent** with `course_slug`/`hole_number`
+(`hole_id_v25 == f"{course_slug}:{hole_number}"`,
+`hole_id_v2 == f"{course_slug}__{hole_number:02d}"`); and — when a
+`field_adjusted_score` column is supplied — that it equals
+`field_avg_score - player_score`.
 
 ## What's deferred
 

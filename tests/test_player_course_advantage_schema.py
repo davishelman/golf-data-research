@@ -148,10 +148,49 @@ def test_non_positive_player_score_fails():
 
 
 def test_null_key_fails():
-    df = pd.DataFrame([_fake_row(), _fake_row(player_id=None)])
+    df = pd.DataFrame([_fake_row(), _fake_row(round=2, player_id=None)])
     with pytest.raises(SchemaError) as exc:
         validate_hole_score_history(df)
     assert "null values in key columns" in str(exc.value)
+    assert "player_id" in str(exc.value)
+
+
+def test_null_required_non_key_column_fails():
+    # `par` is required but not part of the occurrence key -> must still fail.
+    df = pd.DataFrame([_fake_row(), _fake_row(round=2, par=None)])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "null values in required columns" in str(exc.value)
+    assert "par" in str(exc.value)
+
+
+def test_non_numeric_player_score_fails():
+    # A non-numeric player_score must be rejected, not coerced to NaN and passed.
+    df = pd.DataFrame([_fake_row(player_score="abc")])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "non-numeric player_score" in str(exc.value)
+
+
+def test_non_numeric_field_avg_score_fails():
+    df = pd.DataFrame([_fake_row(field_avg_score="oops")])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "non-numeric field_avg_score" in str(exc.value)
+
+
+def test_null_field_avg_score_fails():
+    df = pd.DataFrame([_fake_row(field_avg_score=None)])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "field_avg_score" in str(exc.value)
+
+
+def test_below_minimum_field_avg_score_fails():
+    df = pd.DataFrame([_fake_row(field_avg_score=0.0)])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "field_avg_score < 1" in str(exc.value)
 
 
 def test_multiple_problems_are_all_reported():
@@ -166,9 +205,12 @@ def test_multiple_problems_are_all_reported():
 # ID formats: v2 and v2.5
 # --------------------------------------------------------------------------- #
 def test_valid_v2_and_v25_id_formats_pass():
+    # Ids must be internally consistent with course_slug / hole_number.
     df = pd.DataFrame([
-        _fake_row(hole_id_v2="augusta_national__01", hole_id_v25="augusta_national:1"),
-        _fake_row(round=2, hole_id_v2="pebble_beach__18", hole_id_v25="pebble_beach:18"),
+        _fake_row(course_slug="augusta_national", hole_number=1,
+                  hole_id_v2="augusta_national__01", hole_id_v25="augusta_national:1"),
+        _fake_row(course_slug="pebble_beach", hole_number=18,
+                  hole_id_v2="pebble_beach__18", hole_id_v25="pebble_beach:18"),
     ])
     report = validate_hole_score_history(df)
     assert report.row_count == 2
@@ -193,6 +235,37 @@ def test_id_format_check_can_be_disabled():
     df = pd.DataFrame([_fake_row(hole_id_v25="anything-goes")])
     # Should not raise for the id shape when the check is turned off.
     validate_hole_score_history(df, check_id_formats=False)
+
+
+def test_mismatched_v25_hole_number_fails():
+    # Well-formed id, but hole_number says 13 -> inconsistent.
+    df = pd.DataFrame([_fake_row(hole_number=13, hole_id_v25="augusta_national:7")])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "hole_id_v25" in str(exc.value)
+
+
+def test_mismatched_v25_course_slug_fails():
+    df = pd.DataFrame([_fake_row(course_slug="augusta_national",
+                                 hole_number=13, hole_id_v25="pebble_beach:13")])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "hole_id_v25" in str(exc.value)
+
+
+def test_mismatched_v2_hole_number_fails():
+    df = pd.DataFrame([_fake_row(hole_number=13, hole_id_v2="augusta_national__07")])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "hole_id_v2" in str(exc.value)
+
+
+def test_mismatched_v2_course_slug_fails():
+    df = pd.DataFrame([_fake_row(course_slug="augusta_national",
+                                 hole_number=13, hole_id_v2="pebble_beach__13")])
+    with pytest.raises(SchemaError) as exc:
+        validate_hole_score_history(df)
+    assert "hole_id_v2" in str(exc.value)
 
 
 # --------------------------------------------------------------------------- #
@@ -232,6 +305,14 @@ def test_inconsistent_cached_field_adjusted_fails():
 # --------------------------------------------------------------------------- #
 # Experimental defaults are wired and stable
 # --------------------------------------------------------------------------- #
+def test_course_slug_in_key_columns():
+    # Occurrence grain must include course_slug (protects multi-course events).
+    assert "course_slug" in KEY_COLUMNS
+    assert KEY_COLUMNS == (
+        "player_id", "tournament_id", "year", "round", "course_slug", "hole_number",
+    )
+
+
 def test_default_params_values():
     assert isinstance(DEFAULT_PARAMS, AdvantageParams)
     assert DEFAULT_PARAMS.n == 10

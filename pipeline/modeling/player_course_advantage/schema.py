@@ -60,13 +60,16 @@ OPTIONAL_COLUMNS: tuple[str, ...] = (
     "made_cut",
 )
 
-#: The occurrence grain: one row per player / tournament / year / round / hole.
-#: Duplicate rows on this key are a hard error (double-counting a scoring event).
+#: The occurrence grain: one row per player / tournament / year / round /
+#: course / hole. ``course_slug`` is part of the key so multi-course events (and
+#: hole identity generally) are explicit. Duplicate rows on this key are a hard
+#: error (double-counting a scoring event).
 KEY_COLUMNS: tuple[str, ...] = (
     "player_id",
     "tournament_id",
     "year",
     "round",
+    "course_slug",
     "hole_number",
 )
 
@@ -104,11 +107,15 @@ class AdvantageParams:
         ``n`` — number of top similar holes to pull from v2.5 per target hole
         (by ascending ``total_score`` / rank).
     lookback_years:
-        ``W`` — inclusive lookback window in years of history to include,
-        counted back from the season being predicted.
+        ``W`` — lookback window in years. Only strictly-past seasons are
+        eligible: ``predict_season - W <= y(o) < predict_season``.
     recency_decay:
-        ``m`` — per-year recency decay base. An occurrence ``age`` seasons old
-        gets weight ``m ** age`` (age 0 = most recent season -> weight 1.0).
+        ``m`` — per-year recency decay base. Since only past seasons are eligible
+        (``y(o) < predict_season``), season-level age is measured from the
+        immediately prior season: ``age = (predict_season - 1) - y(o)``, so the
+        prior season (age 0) keeps weight ``m ** 0 = 1.0``. ``m = 1`` disables
+        decay. (A future event-date implementation can use a stricter date cutoff
+        to admit same-season prior starts without leakage.)
     include_current_course_history:
         Whether prior-year occurrences *on course C itself* may enter a hole's
         similar-hole history. Default ``False`` to keep the model about
@@ -214,11 +221,12 @@ def validate_hole_score_history(
     Checks, accumulating *all* problems before failing:
 
     1. required columns present (:data:`REQUIRED_COLUMNS`),
-    2. no nulls in the key columns (:data:`KEY_COLUMNS`),
-    3. no duplicate rows on the occurrence grain,
+    2. no nulls in *any* required column (key columns are called out separately),
+    3. no duplicate rows on the occurrence grain (:data:`KEY_COLUMNS`),
     4. ``year`` / ``round`` / ``hole_number`` / ``par`` within plausible ranges,
-    5. ``player_score`` positive,
-    6. (optional) ``hole_id_v25`` / ``hole_id_v2`` match their id shapes,
+    5. ``player_score`` and ``field_avg_score`` numeric and ``>= 1``,
+    6. (optional) ``hole_id_v25`` / ``hole_id_v2`` match their id shapes *and*
+       are consistent with ``course_slug`` / ``hole_number``,
     7. (optional) a supplied ``field_adjusted_score`` equals
        ``field_avg_score - player_score`` within tolerance.
 
@@ -235,11 +243,16 @@ def validate_hole_score_history(
         # Without the key/value columns the remaining checks are meaningless.
         raise SchemaError(_join(errors), errors)
 
-    # 2. Null keys.
-    key_nulls = {c: int(df[c].isna().sum()) for c in KEY_COLUMNS}
-    bad_keys = {c: n for c, n in key_nulls.items() if n}
-    if bad_keys:
-        errors.append(f"null values in key columns: {bad_keys}")
+    # 2. Nulls in required columns (key columns reported separately for clarity).
+    required_nulls = {c: int(df[c].isna().sum()) for c in REQUIRED_COLUMNS}
+    bad_required = {c: n for c, n in required_nulls.items() if n}
+    if bad_required:
+        key_bad = {c: n for c, n in bad_required.items() if c in KEY_COLUMNS}
+        non_key_bad = {c: n for c, n in bad_required.items() if c not in KEY_COLUMNS}
+        if key_bad:
+            errors.append(f"null values in key columns: {key_bad}")
+        if non_key_bad:
+            errors.append(f"null values in required columns: {non_key_bad}")
 
     # 3. Duplicate occurrences.
     dup_mask = df.duplicated(subset=list(KEY_COLUMNS), keep=False)
@@ -261,16 +274,21 @@ def validate_hole_score_history(
     errors += _range_errors(df, "hole_number", _HOLE_MIN, _HOLE_MAX)
     errors += _range_errors(df, "par", _PAR_MIN, _PAR_MAX)
 
-    # 5. Positive player score.
-    bad_score = _numeric(df["player_score"]) < 1
-    if bad_score.any():
-        errors.append(f"{int(bad_score.sum())} rows with player_score < 1")
+    # 5. Score columns: numeric, non-null, >= 1. (Nulls are also caught in step 2;
+    #    this guards against non-numeric values silently coercing to NaN and
+    #    slipping past the >= 1 check.)
+    errors += _numeric_min_errors(df, "player_score", 1)
+    errors += _numeric_min_errors(df, "field_avg_score", 1)
 
-    # 6. ID shapes.
+    # 6. ID shape + consistency with course_slug / hole_number.
     if check_id_formats:
         errors += _id_format_errors(df, "hole_id_v25", _V25_ID_RE, "slug:hole_number")
+        errors += _id_consistency_errors(
+            df, "hole_id_v25", lambda s, n: f"{s}:{n}", "course_slug:hole_number")
         if "hole_id_v2" in df.columns:
             errors += _id_format_errors(df, "hole_id_v2", _V2_ID_RE, "slug__NN")
+            errors += _id_consistency_errors(
+                df, "hole_id_v2", lambda s, n: f"{s}__{n:02d}", "course_slug__NN")
 
     # 7. Field-adjusted consistency (only if the cached column is supplied).
     if require_field_adjusted_consistency and FIELD_ADJUSTED_COL in df.columns:
@@ -320,6 +338,32 @@ def _range_errors(df: pd.DataFrame, col: str, lo: int, hi: int) -> list[str]:
     return []
 
 
+def _numeric_min_errors(df: pd.DataFrame, col: str, minimum: float) -> list[str]:
+    """Report non-numeric, null, or ``< minimum`` values in a score column.
+
+    Reports non-numeric values explicitly so they cannot silently coerce to NaN
+    and slip past the ``>= minimum`` bound. (Nulls in required score columns are
+    also flagged by the required-null check; this keeps the message specific.)
+    """
+    raw = df[col]
+    vals = _numeric(raw)
+    errors: list[str] = []
+
+    non_numeric = raw.notna() & vals.isna()
+    if non_numeric.any():
+        sample = sorted({str(v) for v in raw[non_numeric].tolist()})[:5]
+        errors.append(f"{int(non_numeric.sum())} rows with non-numeric {col}: e.g. {sample}")
+
+    if raw.isna().any():
+        errors.append(f"{int(raw.isna().sum())} rows with null {col}")
+
+    below = vals.notna() & (vals < minimum)
+    if below.any():
+        errors.append(f"{int(below.sum())} rows with {col} < {minimum}")
+
+    return errors
+
+
 def _id_format_errors(
     df: pd.DataFrame, col: str, pattern: re.Pattern[str], shape: str
 ) -> list[str]:
@@ -329,6 +373,34 @@ def _id_format_errors(
     if not bad.empty:
         sample = sorted(set(bad.tolist()))[:5]
         return [f"{len(bad)} rows with malformed {col} (expected '{shape}'): e.g. {sample}"]
+    return []
+
+
+def _id_consistency_errors(df: pd.DataFrame, col, build, shape: str) -> list[str]:
+    """Report rows where ``col`` != the id ``build(course_slug, hole_number)``.
+
+    Only checks rows where ``col``, ``course_slug``, and a numeric ``hole_number``
+    are all present, so it composes with (rather than duplicates) the null and
+    range checks. Catches a mismatched course slug *or* hole number.
+    """
+    needed = [col, "course_slug", "hole_number"]
+    if any(c not in df.columns for c in needed):
+        return []
+    hn = _numeric(df["hole_number"])
+    usable = df[col].notna() & df["course_slug"].notna() & hn.notna()
+    if not usable.any():
+        return []
+    actual = df.loc[usable, col].astype(str)
+    expected = [
+        build(str(s), int(n))
+        for s, n in zip(df.loc[usable, "course_slug"], hn[usable])
+    ]
+    mism = [(a, e) for a, e in zip(actual.tolist(), expected) if a != e]
+    if mism:
+        return [
+            f"{len(mism)} rows where {col} != '{shape}' built from "
+            f"course_slug/hole_number: e.g. {mism[:5]}"
+        ]
     return []
 
 
