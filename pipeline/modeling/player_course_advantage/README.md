@@ -11,11 +11,13 @@ and a player `p`, estimate `p`'s per-hole and per-course **advantage** from how
 
 ## Status
 
-Built so far — the **scorer and backtest remain deferred**:
+Built so far — the **backtest remains deferred**:
 
 - **#30 / #31** — spec + historical hole-score input schema & validation.
 - **#32** — similar-hole set loader (`similar_holes.py`): reads v2.5 result CSVs
   into normalized per-target-hole similar-hole sets.
+- **#33** — recency-weighted advantage scorer (`scorer.py`): turns the schema +
+  similar-hole sets into player-hole and player-course advantages.
 
 Links:
 
@@ -26,6 +28,9 @@ Links:
   `field_adjusted_advantage`).
 - Similar-hole loader: [`similar_holes.py`](similar_holes.py)
   (`load_similar_hole_sets`, `add_similarity_weights`, `parse_v25_hole_id`).
+- Advantage scorer: [`scorer.py`](scorer.py)
+  (`score_player_holes`, `score_player_course`, `recency_weight`,
+  `filter_history_for_prediction_window`).
 
 ## Similar-hole loader (#32)
 
@@ -43,6 +48,34 @@ sums to 1.0 within each target hole. Weight methods: `rank_decay` (default),
 `pipeline.modeling.pointcloud.demo`, so both the local-index and artifact-bundle
 layouts work. Component score columns (`fairway_score`, …) are preserved when the
 source CSV has them, and their absence does not break loading.
+
+## Advantage scorer (#33)
+
+```python
+from pipeline.modeling.player_course_advantage import (
+    load_similar_hole_sets, score_player_course,
+)
+
+sim = load_similar_hole_sets(root, "augusta_national")
+per_hole, summary = score_player_course(
+    history, sim, player_id="p123", target_course_slug="augusta_national",
+    predict_season=2024,           # only strictly-past seasons are eligible
+    aggregate="sum",               # or "mean"
+)
+```
+
+- **Model.** `advantage(p, h)` is the similarity- and recency-weighted mean of
+  `field_avg_score - player_score` over the player's occurrences on `h`'s similar
+  holes; the course number sums (default) or averages the covered holes.
+- **Leakage guard.** Eligible history is `predict_season - W <= year < predict_season`
+  — never the target season or later — with `age = (predict_season - 1) - year` so
+  the prior season has recency weight `1.0`. Same-course prior history is excluded
+  unless `include_current_course_history=True`.
+- **Coverage.** Holes below `min_occurrences_per_hole` get `hole_advantage = NaN`
+  (never a fabricated 0) with a `reason`; a course with fewer than
+  `min_holes_covered` covered holes is withheld. `score_player_holes` returns the
+  per-hole detail; `score_player_course` adds a course-summary dict.
+- Pure, deterministic, Streamlit-free. **v0** — still needs the backtest (#35).
 
 ## Experimental defaults
 

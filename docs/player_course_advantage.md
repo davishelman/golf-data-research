@@ -2,9 +2,10 @@
 
 **Status:** spec + building blocks. Shipped so far: the spec, the package
 (`pipeline/modeling/player_course_advantage/`), the historical hole-score
-**input schema + validation** (#30, #31), and the **similar-hole set loader**
-(#32, [§13](#13-similar-hole-set-loader-issue-32)). The scorer and backtest are
-**intentionally deferred** (see [Deferred](#whats-deferred)).
+**input schema + validation** (#30, #31), the **similar-hole set loader**
+(#32, [§13](#13-similar-hole-set-loader-issue-32)), and the **recency-weighted
+advantage scorer** (#33, [§14](#14-advantage-scorer-issue-33)). The **backtest**
+is still **intentionally deferred** (see [Deferred](#whats-deferred)).
 
 > **Experimental.** Every default below (`n`, `W`, `m`, coverage thresholds) is a
 > placeholder from the sketch, **not** calibrated on data. Treat numbers as
@@ -319,13 +320,64 @@ load_similar_hole_sets(root, target_course_slug, config_name="baseline",
 Tolerant to older/smaller CSVs: missing optional component columns are simply
 omitted. It never stores raw point-cloud geometry.
 
+## 14. Advantage scorer (issue #33)
+
+Implemented in `pipeline/modeling/player_course_advantage/scorer.py`. It is the
+first real scorer: it consumes the validated hole-score history ([§9](#9-historical-hole-score-input-schema-issue-31))
+and the #32 similar-hole sets ([§13](#13-similar-hole-set-loader-issue-32)) and
+emits per-hole and per-course advantages. It generates **no** similarity.
+
+```python
+per_hole = score_player_holes(history, similar_holes, player_id,
+                              target_course_slug, predict_season, params=DEFAULT_PARAMS)
+per_hole, summary = score_player_course(history, similar_holes, player_id,
+                              target_course_slug, predict_season,
+                              config_name="baseline", params=DEFAULT_PARAMS,
+                              aggregate="sum")
+```
+
+- **Model.** For a target hole `h`, `advantage(p, h)` is the weighted mean of
+  the [§6](#6-positive-is-good-outcome-convention) outcome over the player's
+  occurrences on `h`'s similar holes, with per-row weight
+  `similarity_weight(h, s) · recency_weight(y(o))` (exactly [§8](#8-player-hole-and-player-course-formulas)).
+  History joins to similar holes on `hole_id_v25 == candidate_hole_id`. The
+  course number aggregates the covered holes — **`sum` by default** (expected
+  strokes-vs-field over a round), `mean` optional; `course_advantage_mean` is
+  always reported.
+- **Leakage rule** ([§7](#7-recency-weighting), [§10](#10-lookahead-leakage)).
+  Eligible history is only
+
+  ```
+  predict_season - W <= year < predict_season
+  ```
+
+  (never the target season or later), with `age = (predict_season - 1) - year`
+  so the prior season has recency weight `1.0`. Same-course prior history is
+  excluded unless `include_current_course_history=True`.
+- **Coverage** ([§11](#11-missing-data--coverage-policy)). A target hole below
+  `min_occurrences_per_hole` raw occurrences is marked low-coverage with
+  `hole_advantage = NaN` (never a fabricated 0) and a `reason`; a player-course
+  score with fewer than `min_holes_covered` covered holes is withheld. Reasons:
+  `no_player_history`, `no_eligible_history`, `no_similar_holes`,
+  `below_min_occurrences`, `below_min_holes_covered`. Coverage diagnostics
+  (`raw_occurrences`, `weighted_occurrences`, `holes_covered`, …) travel with
+  every score.
+- **Validation.** Calls `validate_hole_score_history` first (raises `SchemaError`
+  on a contract violation); uses a present, validated `field_adjusted_score` or
+  computes it from `field_avg_score - player_score`.
+- Pure, deterministic, Streamlit-free, and free of real-data dependencies.
+
+Still **v0**: defaults are uncalibrated and the numbers are not trustworthy until
+the retrospective **backtest (#35)** has walked them forward against held-out
+seasons.
+
 ## What's deferred
 
 Intentionally **not** implemented yet (guards issue scope):
 
-- The advantage **scorer** (`sim_weight`/`recency_weight` application,
-  aggregation, coverage gating) — spec'd above, not implemented.
-- **Backtesting** / walk-forward evaluation.
+- **Batch tournament-field ranking** (#34) — scoring a whole field at once.
+- **Backtesting** / walk-forward evaluation (#35).
+- **Parameter sweeps** (#36) — tuning `n` / `W` / `m` / coverage on real results.
 - Any **real PGA data** sourcing/scraping.
 - Wiring into the Streamlit demo or the HF artifact.
 

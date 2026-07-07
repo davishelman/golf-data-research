@@ -18,6 +18,8 @@ Layout (the scorer and backtest remain deferred):
   and lightweight validation (:func:`.schema.validate_hole_score_history`).
 * :mod:`.similar_holes` — reads v2.5 similarity result CSVs into normalized
   per-target-hole similar-hole sets (:func:`.similar_holes.load_similar_hole_sets`).
+* :mod:`.scorer` — the recency-weighted player-hole and player-course advantage
+  scorer (:func:`.scorer.score_player_holes`, :func:`.scorer.score_player_course`).
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -49,6 +51,17 @@ from .similar_holes import (  # noqa: E402
     missing_target_hole_numbers,
     parse_v25_hole_id,
 )
+from .scorer import (  # noqa: E402
+    AGGREGATIONS,
+    HOLE_OUTPUT_COLUMNS,
+    AdvantageScorerError,
+    PlayerCourseAdvantage,
+    PlayerHoleAdvantage,
+    filter_history_for_prediction_window,
+    recency_weight,
+    score_player_course,
+    score_player_holes,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -70,4 +83,14 @@ __all__ = [
     "load_similar_hole_sets",
     "available_target_hole_numbers",
     "missing_target_hole_numbers",
+    # advantage scorer (#33)
+    "AGGREGATIONS",
+    "HOLE_OUTPUT_COLUMNS",
+    "AdvantageScorerError",
+    "PlayerHoleAdvantage",
+    "PlayerCourseAdvantage",
+    "recency_weight",
+    "filter_history_for_prediction_window",
+    "score_player_holes",
+    "score_player_course",
 ]
