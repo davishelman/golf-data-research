@@ -1,10 +1,10 @@
 # Player-course advantage (v0 spec)
 
-**Status:** design spec only. This PR ships the spec, a package skeleton
-(`pipeline/modeling/player_course_advantage/`), and the historical hole-score
-**input schema + validation**. The scorer is **intentionally deferred** (see
-[Deferred](#whats-deferred)). Covers issues **#30** (scoring spec) and **#31**
-(input schema).
+**Status:** spec + building blocks. Shipped so far: the spec, the package
+(`pipeline/modeling/player_course_advantage/`), the historical hole-score
+**input schema + validation** (#30, #31), and the **similar-hole set loader**
+(#32, [§13](#13-similar-hole-set-loader-issue-32)). The scorer and backtest are
+**intentionally deferred** (see [Deferred](#whats-deferred)).
 
 > **Experimental.** Every default below (`n`, `W`, `m`, coverage thresholds) is a
 > placeholder from the sketch, **not** calibrated on data. Treat numbers as
@@ -281,12 +281,51 @@ are **consistent** with `course_slug`/`hole_number`
 `field_adjusted_score` column is supplied — that it equals
 `field_avg_score - player_score`.
 
+## 13. Similar-hole set loader (issue #32)
+
+Implemented in `pipeline/modeling/player_course_advantage/similar_holes.py`. It
+turns the existing **v2.5** similarity result CSVs into the `Sim(h)` sets this
+model consumes — it does **not** generate similarity or touch v2.5 scoring.
+
+```python
+load_similar_hole_sets(root, target_course_slug, config_name="baseline",
+                       top_n=10, weight_method="rank_decay",
+                       rank_decay=0.8, softmax_temperature=1.0, epsilon=1e-9)
+```
+
+- **Inputs.** Reads `<config>/similarity_results.csv` under either supported
+  layout (local index `<root>/pointcloud_similarity/…` or artifact bundle
+  `<root>/data/pointcloud_similarity/…`), reusing
+  `pipeline.modeling.pointcloud.demo` for path resolution.
+- **Output.** A tidy frame, one row per (target hole, candidate hole):
+  `target_course_slug, target_hole_number, target_hole_id,
+  candidate_course_slug, candidate_hole_number, candidate_hole_id, rank,
+  total_score, similarity_weight, weight_method, config_name`, followed by any
+  v2.5 component columns present (`fairway_score` … `missing_surface_penalty`).
+  Up to `18 * top_n` rows for a full course; sorted deterministically by
+  `(target_hole_number, rank, candidate_hole_id)`.
+- **Weighting** ([§5](#5-similarity-weighting) options) via
+  `add_similarity_weights`: `rank_decay` (default), `inverse_score`,
+  `softmax_score`, `uniform` — each **normalized to sum to 1.0 within every
+  target hole**.
+- **Validation.** Requires `target_hole_id`, `candidate_hole_id`, `rank`,
+  `total_score`; checks numeric `total_score`, positive `rank`, parseable
+  `slug:number` ids, positive `top_n`, and a recognized `weight_method`; raises a
+  clear `SimilarHoleLoaderError` when the results dir/file is missing or the
+  requested course has no rows.
+- **Coverage.** `available_target_hole_numbers` /
+  `missing_target_hole_numbers` diagnose partial courses without crashing.
+
+Tolerant to older/smaller CSVs: missing optional component columns are simply
+omitted. It never stores raw point-cloud geometry.
+
 ## What's deferred
 
-Intentionally **not** in this PR (guards issue scope):
+Intentionally **not** implemented yet (guards issue scope):
 
 - The advantage **scorer** (`sim_weight`/`recency_weight` application,
   aggregation, coverage gating) — spec'd above, not implemented.
+- **Backtesting** / walk-forward evaluation.
 - Any **real PGA data** sourcing/scraping.
 - Wiring into the Streamlit demo or the HF artifact.
 
