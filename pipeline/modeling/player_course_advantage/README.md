@@ -20,6 +20,8 @@ Built so far — the **backtest remains deferred**:
   similar-hole sets into player-hole and player-course advantages.
 - **#39** — diagnostics / explanation outputs (`diagnostics.py`): reconciling
   breakdowns of *why* a score came out the way it did.
+- **#34** — batch tournament-field ranking (`batch.py`): rank a whole field for a
+  course, Python API + CLI.
 
 Links:
 
@@ -35,6 +37,8 @@ Links:
   `filter_history_for_prediction_window`).
 - Diagnostics / explanation: [`diagnostics.py`](diagnostics.py)
   (`explain_player_course`, `contribution_rows`, `PlayerCourseExplanation`).
+- Batch field ranking: [`batch.py`](batch.py)
+  (`score_tournament_field`, `rank_field`, `export_field_ranking`, CLI `main`).
 
 ## Similar-hole loader (#32)
 
@@ -99,6 +103,34 @@ Read-only companion to the scorer. It re-derives the same
 breakdowns **reconcile exactly**: a hole's similar-hole contributions sum to its
 advantage, and covered holes sum to the course advantage. No Streamlit formatting
 leaks into scorer internals.
+
+## Batch field ranking (#34)
+
+```python
+from pipeline.modeling.player_course_advantage import (
+    load_similar_hole_sets, score_tournament_field,
+)
+
+sim = load_similar_hole_sets(root, "augusta_national")
+ranking = score_tournament_field(
+    history, sim, field,               # field: list of player_ids or a DataFrame
+    target_course_slug="augusta_national", predict_season=2024,
+)
+```
+
+One deterministic row per player (valid players first, then descending
+`course_advantage`, higher coverage, `player_id` tie-break); low-coverage players
+are ranked last and flagged, never dropped or faked. Also runnable as a CLI:
+
+```bash
+python -m pipeline.modeling.player_course_advantage.batch \
+    --root courses/_index --history history.csv \
+    --course augusta_national --predict-season 2024 --out data/player_course_advantage/run1
+```
+
+`export_field_ranking(...)` writes `player_rankings.csv` + a `manifest.json`;
+generated outputs live under `data/player_course_advantage/` and are gitignored.
+Per-player *why* comes from the #39 diagnostics module.
 
 ## Experimental defaults
 
