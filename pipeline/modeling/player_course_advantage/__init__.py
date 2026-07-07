@@ -24,6 +24,9 @@ Layout (the scorer and backtest remain deferred):
   (:func:`.diagnostics.explain_player_course`, :func:`.diagnostics.contribution_rows`).
 * :mod:`.batch` — rank a whole tournament field for a course
   (:func:`.batch.score_tournament_field`), Python API + CLI.
+* :mod:`.artifact_export` — persist/load a run (rankings, hole details,
+  diagnostics, manifest) in a gitignored artifact layout
+  (:func:`.artifact_export.export_advantage_run`, :func:`.artifact_export.load_advantage_run`).
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -78,6 +81,15 @@ from .batch import (  # noqa: E402
     rank_field,
     score_tournament_field,
 )
+from .artifact_export import (  # noqa: E402
+    ARTIFACT_SUBDIR,
+    AdvantageRun,
+    ArtifactExportError,
+    assemble_field_outputs,
+    export_advantage_run,
+    load_advantage_run,
+    make_run_id,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -119,4 +131,12 @@ __all__ = [
     "score_tournament_field",
     "rank_field",
     "export_field_ranking",
+    # artifact export + load (#44)
+    "ARTIFACT_SUBDIR",
+    "AdvantageRun",
+    "ArtifactExportError",
+    "make_run_id",
+    "assemble_field_outputs",
+    "export_advantage_run",
+    "load_advantage_run",
 ]
