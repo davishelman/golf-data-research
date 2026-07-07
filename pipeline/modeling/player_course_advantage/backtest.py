@@ -22,7 +22,7 @@ Pure, deterministic, Streamlit-free.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Optional, Sequence, Union
+from typing import Callable, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -173,6 +173,7 @@ def run_backtest(
     aggregate: str = "sum",
     top_k: Sequence[int] = DEFAULT_TOP_K,
     error_metrics: bool = False,
+    ranker: Callable[..., pd.DataFrame] = score_tournament_field,
     event_col: str = "event_id",
     season_col: str = "predict_season",
     course_col: str = "target_course_slug",
@@ -186,8 +187,11 @@ def run_backtest(
 
     ``outcome_col`` is the actual result to correlate; set ``higher_is_better`` so
     "performance" is normalized higher-is-better (e.g. ``finish_rank`` →
-    ``higher_is_better=False``, ``strokes_gained`` → ``True``). Returns a
-    :class:`BacktestResult`. ``history`` is validated once. Never mutates inputs.
+    ``higher_is_better=False``, ``strokes_gained`` → ``True``). ``ranker`` is the
+    field-scoring callable (default the similar-hole model
+    :func:`.batch.score_tournament_field`); pass a #38 baseline to evaluate it on
+    the exact same events/metrics. Returns a :class:`BacktestResult`. ``history``
+    is validated once. Never mutates inputs.
     """
     validate_hole_score_history(history)
     for col in (event_col, season_col, course_col, "player_id", outcome_col):
@@ -212,7 +216,7 @@ def run_backtest(
         group = results[results[event_col] == event_id]
         field = group["player_id"].astype(str).tolist()
 
-        ranking = score_tournament_field(
+        ranking = ranker(
             history, _sim_for(similar_holes, course), field, course, season,
             config_name=config_name, params=params, aggregate=aggregate,
         )

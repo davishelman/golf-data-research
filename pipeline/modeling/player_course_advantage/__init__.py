@@ -29,6 +29,8 @@ Layout (the scorer and backtest remain deferred):
   (:func:`.artifact_export.export_advantage_run`, :func:`.artifact_export.load_advantage_run`).
 * :mod:`.backtest` — retrospective, leakage-guarded evaluation over historical
   events (:func:`.backtest.run_backtest`).
+* :mod:`.baselines` — simple comparison baselines with the model's ranker shape
+  (:func:`.baselines.compare_baselines`).
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -101,6 +103,11 @@ from .backtest import (  # noqa: E402
     top_k_hit_rate,
     top_k_lift,
 )
+from .baselines import (  # noqa: E402
+    BASELINES,
+    compare_baselines,
+    model_beats_baselines,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -158,4 +165,8 @@ __all__ = [
     "spearman_corr",
     "top_k_hit_rate",
     "top_k_lift",
+    # baseline comparisons (#38)
+    "BASELINES",
+    "compare_baselines",
+    "model_beats_baselines",
 ]

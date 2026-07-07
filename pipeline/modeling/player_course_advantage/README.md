@@ -26,6 +26,8 @@ Built so far — the **backtest remains deferred**:
   synthetic smoke test proving the full pipeline runs offline.
 - **#35** — retrospective backtest framework (`backtest.py`): leakage-guarded
   walk-forward evaluation with rank-correlation / hit-rate / lift metrics.
+- **#38** — simple comparison baselines (`baselines.py`): drop-in rankers +
+  side-by-side backtest comparison.
 
 Links:
 
@@ -47,6 +49,8 @@ Links:
   (`assemble_field_outputs`, `export_advantage_run`, `load_advantage_run`).
 - Backtest framework: [`backtest.py`](backtest.py)
   (`run_backtest`, `BacktestResult`, `spearman_corr`, `top_k_hit_rate`).
+- Comparison baselines: [`baselines.py`](baselines.py)
+  (`compare_baselines`, `model_beats_baselines`, `BASELINES`).
 
 ## Similar-hole loader (#32)
 
@@ -197,6 +201,28 @@ dependency.
 (synthetic in tests) and makes **no** predictive-validity claim on real data —
 that needs the #46 data sourcing first. The `backtest_summary.csv` slot in the
 artifact layout is where a run's metrics land.
+
+## Baselines (#38)
+
+```python
+from pipeline.modeling.player_course_advantage import (
+    compare_baselines, model_beats_baselines,
+)
+
+table = compare_baselines(history, sim, results, outcome_col="finish_rank",
+                          higher_is_better=False)   # one metrics row per ranker
+beats = model_beats_baselines(table)                # strict, NaN-safe verdict
+```
+
+Each baseline (`null`, `recent_form`, `course_history`, `same_par`,
+`season_average`) is a **drop-in ranker** with the model's signature/output, so
+the backtest evaluates them on identical events via its `ranker=` hook. All share
+the same leakage-guarded prediction window. `model_beats_baselines` only returns
+`True` when the model *strictly* exceeds every baseline — the model does **not**
+automatically win, and on synthetic data it frequently ties. A v2
+feature-similarity baseline is intentionally left out (it would couple this layer
+to v2 internals). Real superiority is unproven until #46 supplies leakage-free
+labels.
 
 ## Experimental defaults
 
