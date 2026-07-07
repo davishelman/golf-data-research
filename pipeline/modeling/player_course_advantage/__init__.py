@@ -27,6 +27,8 @@ Layout (the scorer and backtest remain deferred):
 * :mod:`.artifact_export` — persist/load a run (rankings, hole details,
   diagnostics, manifest) in a gitignored artifact layout
   (:func:`.artifact_export.export_advantage_run`, :func:`.artifact_export.load_advantage_run`).
+* :mod:`.backtest` — retrospective, leakage-guarded evaluation over historical
+  events (:func:`.backtest.run_backtest`).
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -90,6 +92,15 @@ from .artifact_export import (  # noqa: E402
     load_advantage_run,
     make_run_id,
 )
+from .backtest import (  # noqa: E402
+    BacktestError,
+    BacktestResult,
+    pearson_corr,
+    run_backtest,
+    spearman_corr,
+    top_k_hit_rate,
+    top_k_lift,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -139,4 +150,12 @@ __all__ = [
     "assemble_field_outputs",
     "export_advantage_run",
     "load_advantage_run",
+    # backtest framework (#35)
+    "BacktestError",
+    "BacktestResult",
+    "run_backtest",
+    "pearson_corr",
+    "spearman_corr",
+    "top_k_hit_rate",
+    "top_k_lift",
 ]
