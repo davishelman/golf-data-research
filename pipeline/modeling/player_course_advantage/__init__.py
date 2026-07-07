@@ -22,6 +22,8 @@ Layout (the scorer and backtest remain deferred):
   scorer (:func:`.scorer.score_player_holes`, :func:`.scorer.score_player_course`).
 * :mod:`.diagnostics` — explanation outputs reconciling with the scorer
   (:func:`.diagnostics.explain_player_course`, :func:`.diagnostics.contribution_rows`).
+* :mod:`.batch` — rank a whole tournament field for a course
+  (:func:`.batch.score_tournament_field`), Python API + CLI.
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -70,6 +72,12 @@ from .diagnostics import (  # noqa: E402
     contribution_rows,
     explain_player_course,
 )
+from .batch import (  # noqa: E402
+    FIELD_RANKING_COLUMNS,
+    export_field_ranking,
+    rank_field,
+    score_tournament_field,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -106,4 +114,9 @@ __all__ = [
     "PlayerCourseExplanation",
     "contribution_rows",
     "explain_player_course",
+    # batch field ranking (#34)
+    "FIELD_RANKING_COLUMNS",
+    "score_tournament_field",
+    "rank_field",
+    "export_field_ranking",
 ]
