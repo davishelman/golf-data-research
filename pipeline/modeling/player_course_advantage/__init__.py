@@ -20,6 +20,8 @@ Layout (the scorer and backtest remain deferred):
   per-target-hole similar-hole sets (:func:`.similar_holes.load_similar_hole_sets`).
 * :mod:`.scorer` — the recency-weighted player-hole and player-course advantage
   scorer (:func:`.scorer.score_player_holes`, :func:`.scorer.score_player_course`).
+* :mod:`.diagnostics` — explanation outputs reconciling with the scorer
+  (:func:`.diagnostics.explain_player_course`, :func:`.diagnostics.contribution_rows`).
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -62,6 +64,12 @@ from .scorer import (  # noqa: E402
     score_player_course,
     score_player_holes,
 )
+from .diagnostics import (  # noqa: E402
+    CONTRIBUTION_COLUMNS,
+    PlayerCourseExplanation,
+    contribution_rows,
+    explain_player_course,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -93,4 +101,9 @@ __all__ = [
     "filter_history_for_prediction_window",
     "score_player_holes",
     "score_player_course",
+    # diagnostics / explanation (#39)
+    "CONTRIBUTION_COLUMNS",
+    "PlayerCourseExplanation",
+    "contribution_rows",
+    "explain_player_course",
 ]
