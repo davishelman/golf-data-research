@@ -18,6 +18,8 @@ Built so far — the **backtest remains deferred**:
   into normalized per-target-hole similar-hole sets.
 - **#33** — recency-weighted advantage scorer (`scorer.py`): turns the schema +
   similar-hole sets into player-hole and player-course advantages.
+- **#39** — diagnostics / explanation outputs (`diagnostics.py`): reconciling
+  breakdowns of *why* a score came out the way it did.
 
 Links:
 
@@ -31,6 +33,8 @@ Links:
 - Advantage scorer: [`scorer.py`](scorer.py)
   (`score_player_holes`, `score_player_course`, `recency_weight`,
   `filter_history_for_prediction_window`).
+- Diagnostics / explanation: [`diagnostics.py`](diagnostics.py)
+  (`explain_player_course`, `contribution_rows`, `PlayerCourseExplanation`).
 
 ## Similar-hole loader (#32)
 
@@ -76,6 +80,25 @@ per_hole, summary = score_player_course(
   `min_holes_covered` covered holes is withheld. `score_player_holes` returns the
   per-hole detail; `score_player_course` adds a course-summary dict.
 - Pure, deterministic, Streamlit-free. **v0** — still needs the backtest (#35).
+
+## Diagnostics / explanation (#39)
+
+```python
+from pipeline.modeling.player_course_advantage import explain_player_course
+
+expl = explain_player_course(history, sim, "p123", "augusta_national", 2024)
+expl.top_target_holes(5)       # holes driving the course number
+expl.top_similar_holes(5)      # (target, similar) pairs by weighted contribution
+expl.occurrence_year_counts    # coverage by season
+expl.low_coverage              # withheld holes + reason
+expl.to_records()              # serializable for notebooks / UI
+```
+
+Read-only companion to the scorer. It re-derives the same
+`similarity_weight · recency_weight` contributions the scorer aggregates, so the
+breakdowns **reconcile exactly**: a hole's similar-hole contributions sum to its
+advantage, and covered holes sum to the course advantage. No Streamlit formatting
+leaks into scorer internals.
 
 ## Experimental defaults
 
