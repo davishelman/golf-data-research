@@ -11,11 +11,13 @@ and a historical player-by-hole scoring table, and never mutates either. See
 :doc:`the spec </docs/player_course_advantage>` (``docs/player_course_advantage.md``)
 for the full problem statement, notation, and formulas.
 
-Layout (this first PR ships only the spec + schema; the scorer is deferred):
+Layout (the scorer and backtest remain deferred):
 
 * :mod:`.schema` — historical hole-score input contract, the positive-is-good
   field-adjusted outcome convention, default parameters (``n``, ``W``, ``m``),
   and lightweight validation (:func:`.schema.validate_hole_score_history`).
+* :mod:`.similar_holes` — reads v2.5 similarity result CSVs into normalized
+  per-target-hole similar-hole sets (:func:`.similar_holes.load_similar_hole_sets`).
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -38,6 +40,15 @@ from .schema import (  # noqa: E402
     field_adjusted_advantage,
     validate_hole_score_history,
 )
+from .similar_holes import (  # noqa: E402
+    WEIGHT_METHODS,
+    SimilarHoleLoaderError,
+    add_similarity_weights,
+    available_target_hole_numbers,
+    load_similar_hole_sets,
+    missing_target_hole_numbers,
+    parse_v25_hole_id,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -51,4 +62,12 @@ __all__ = [
     "field_adjusted_advantage",
     "add_field_adjusted_advantage",
     "validate_hole_score_history",
+    # similar-hole loader (#32)
+    "WEIGHT_METHODS",
+    "SimilarHoleLoaderError",
+    "parse_v25_hole_id",
+    "add_similarity_weights",
+    "load_similar_hole_sets",
+    "available_target_hole_numbers",
+    "missing_target_hole_numbers",
 ]
