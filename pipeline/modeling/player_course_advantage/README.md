@@ -24,6 +24,8 @@ Built so far — the **backtest remains deferred**:
   course, Python API + CLI.
 - **#44 / #45** — artifact export/load (`artifact_export.py`) + an end-to-end
   synthetic smoke test proving the full pipeline runs offline.
+- **#35** — retrospective backtest framework (`backtest.py`): leakage-guarded
+  walk-forward evaluation with rank-correlation / hit-rate / lift metrics.
 
 Links:
 
@@ -43,6 +45,8 @@ Links:
   (`score_tournament_field`, `rank_field`, `export_field_ranking`, CLI `main`).
 - Artifact export/load: [`artifact_export.py`](artifact_export.py)
   (`assemble_field_outputs`, `export_advantage_run`, `load_advantage_run`).
+- Backtest framework: [`backtest.py`](backtest.py)
+  (`run_backtest`, `BacktestResult`, `spearman_corr`, `top_k_hit_rate`).
 
 ## Similar-hole loader (#32)
 
@@ -167,6 +171,32 @@ Only ids/scores/diagnostics are written — **never raw point-cloud geometry**
 (guarded on export). The #45 smoke test exercises the whole chain (fake v2.5 CSV
 → loader → scorer → ranking → diagnostics → export/load) offline, with no real
 `courses/` outputs, no network, and no Streamlit.
+
+## Backtest (#35)
+
+```python
+from pipeline.modeling.player_course_advantage import run_backtest
+
+result = run_backtest(
+    history, sim, results,             # results: actual outcomes per (event, player)
+    outcome_col="finish_rank", higher_is_better=False,   # lower finish = better
+)
+result.summary          # pooled + mean Spearman/Pearson, hit-rate, lift, coverage
+result.per_event        # one row of metrics per historical event
+result.to_markdown()    # optional report
+```
+
+Each event is scored with `predict_season = <event season>`, so the scorer admits
+only `predict_season - W <= year < predict_season` — **the leakage guard**. Each
+event freezes its own window; nothing is pooled and scored in-sample. Metrics:
+Spearman / Pearson (mean-of-events and pooled), top-k hit-rate, top-k lift,
+optional MAE/RMSE, and coverage. Correlations are computed without a SciPy
+dependency.
+
+**v0 plumbing only.** It reports honest metrics on whatever labels it's given
+(synthetic in tests) and makes **no** predictive-validity claim on real data —
+that needs the #46 data sourcing first. The `backtest_summary.csv` slot in the
+artifact layout is where a run's metrics land.
 
 ## Experimental defaults
 
