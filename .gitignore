@@ -71,6 +71,13 @@ courses/
 # ---- Player-course advantage generated outputs (rankings / backtests) ----
 data/player_course_advantage/
 
+# ---- Private bring-your-own real hole-score data (never commit) ----
+# Canonical output lives under the ignored data/player_course_advantage/private/.
+data/player_course_advantage/private/
+**/normalized_history*.csv
+**/*raw_hole_scores*.csv
+**/course_aliases*.csv
+
 # ---- Hugging Face export folders (built locally, uploaded manually) ----
 hf_artifact/
 hf_artifact_lite/

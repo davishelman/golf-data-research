@@ -150,6 +150,19 @@ from .benchmarks import (  # noqa: E402
     export_benchmarks,
     run_benchmarks,
 )
+from .identity import (  # noqa: E402
+    IdentityError,
+    build_mapping_report,
+    load_course_aliases,
+    resolve_course_slug,
+    slugify,
+)
+from .ingestion import (  # noqa: E402
+    IngestionError,
+    compute_field_avg_scores,
+    normalize_and_validate,
+    normalize_hole_scores,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -245,4 +258,15 @@ __all__ = [
     "benchmark_components",
     "run_benchmarks",
     "export_benchmarks",
+    # course/hole identity mapping (#71)
+    "IdentityError",
+    "slugify",
+    "load_course_aliases",
+    "resolve_course_slug",
+    "build_mapping_report",
+    # real-data ingestion adapter (#70)
+    "IngestionError",
+    "compute_field_avg_scores",
+    "normalize_hole_scores",
+    "normalize_and_validate",
 ]
