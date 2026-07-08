@@ -137,6 +137,19 @@ from .evaluation import (  # noqa: E402
     render_evaluation_markdown,
     summarize_per_event_metrics,
 )
+from .calibration import (  # noqa: E402
+    bucket_predictions,
+    calibration_slope,
+    calibration_table,
+    monotonicity_score,
+    reliability_by_coverage,
+    render_calibration_summary,
+)
+from .benchmarks import (  # noqa: E402
+    benchmark_components,
+    export_benchmarks,
+    run_benchmarks,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -221,4 +234,15 @@ __all__ = [
     "make_metrics_manifest",
     "render_evaluation_markdown",
     "export_evaluation_report",
+    # calibration & reliability (#61)
+    "bucket_predictions",
+    "calibration_table",
+    "monotonicity_score",
+    "calibration_slope",
+    "reliability_by_coverage",
+    "render_calibration_summary",
+    # runtime / scalability benchmarks (#63)
+    "benchmark_components",
+    "run_benchmarks",
+    "export_benchmarks",
 ]
