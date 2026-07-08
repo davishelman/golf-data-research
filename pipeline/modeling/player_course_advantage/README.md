@@ -28,6 +28,8 @@ Built so far — the **backtest remains deferred**:
   walk-forward evaluation with rank-correlation / hit-rate / lift metrics.
 - **#38** — simple comparison baselines (`baselines.py`): drop-in rankers +
   side-by-side backtest comparison.
+- **#36** — parameter sweep (`sweep.py`): reproducible grid search around the
+  backtest with train/validation split logic.
 
 Links:
 
@@ -51,6 +53,8 @@ Links:
   (`run_backtest`, `BacktestResult`, `spearman_corr`, `top_k_hit_rate`).
 - Comparison baselines: [`baselines.py`](baselines.py)
   (`compare_baselines`, `model_beats_baselines`, `BASELINES`).
+- Parameter sweep: [`sweep.py`](sweep.py)
+  (`run_sweep`, `SweepGrid`, `SweepResult.recommend`, `export_sweep`).
 
 ## Similar-hole loader (#32)
 
@@ -223,6 +227,31 @@ automatically win, and on synthetic data it frequently ties. A v2
 feature-similarity baseline is intentionally left out (it would couple this layer
 to v2 internals). Real superiority is unproven until #46 supplies leakage-free
 labels.
+
+## Parameter sweep (#36)
+
+```python
+from pipeline.modeling.player_course_advantage import SweepGrid, run_sweep
+
+grid = SweepGrid(recency_decay=(0.7, 0.85, 1.0), lookback_years=(3, 5),
+                 min_holes_covered=(8, 12))
+res = run_sweep(history, results, provider,   # provider(config, top_n, weight_method) -> sim
+                grid=grid, outcome_col="finish_rank", higher_is_better=False,
+                validation_seasons=[2024])    # hold out for honest selection
+res.table                       # metrics per parameter set (train + val_ columns)
+res.recommend()                 # best row clearing coverage/pairs guards
+res.recommended_params()        # -> AdvantageParams
+res.warnings                    # in-sample / low-coverage / low-pairs flags
+```
+
+Loader-side knobs (`top_n`, `weight_method`, v2.5 `config_name`) come from the
+memoized `provider`; scorer-side knobs (`W`, `m`, coverage thresholds, aggregate)
+go into `AdvantageParams`. Each backtest is leakage-free per event. Selecting the
+best row on the same events is in-sample tuning, so **pass `validation_seasons`**:
+metrics split into train / `val_*`, `recommend` chooses on validation, and a
+warning fires when no split is given. `recommend` also refuses rows below the
+coverage / scored-pairs guards so a near-empty field can't win. Real sweep
+outputs are gitignored (`export_sweep`).
 
 ## Experimental defaults
 
