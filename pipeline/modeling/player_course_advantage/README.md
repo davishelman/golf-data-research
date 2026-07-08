@@ -62,6 +62,9 @@ Links:
 - Optimization & variants:
   [`docs/player_course_advantage_optimization.md`](../../../docs/player_course_advantage_optimization.md)
   (`optimization.py`, `variants.py`, `scripts/optimize_player_course_advantage_params.py`)
+- Error analysis & insight reports:
+  [`docs/player_course_advantage_insight_reports.md`](../../../docs/player_course_advantage_insight_reports.md)
+  (`error_analysis.py`, `insight_report.py`)
 - Input contract + validation: [`schema.py`](schema.py)
   (`validate_hole_score_history`, `AdvantageParams`, `DEFAULT_PARAMS`,
   `field_adjusted_advantage`).
