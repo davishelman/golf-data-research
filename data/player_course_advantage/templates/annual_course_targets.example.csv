@@ -1,0 +1,43 @@
+course_slug,course_name,event_name,tour,annual_status,supported_in_repo,has_v25_geometry,has_similarity_outputs,expected_holes,similarity_holes,source_priority,real_data_status,notes
+aronimink_golf_club,Aronimink Golf Club,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+augusta_national,Augusta National Golf Club,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+bay_hill_club_and_lodge,Arnold Palmer's Bay Hill Club & Lodge,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+bellerive_country_club,Bellerive Country Club,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+colonial_country_club_fort_worth,Colonial Country Club,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+detroit_golf_club,Detroit Golf Club,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+dunes_golf_and_beach_club,Dunes Golf and Beach Club,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+east_lake_golf_club,East Lake Golf Club,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+grand_reserve_golf_club,Grand Reserve Golf Club,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+harbour_town_golf_links,Harbour Town Golf Links,,PGA Tour,unknown,True,True,True,18,12,byo_csv,missing,partial similarity coverage: 12/18 holes
+hurstbourne_country_club,Hurstbourne Country Club,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+innisbrook_copperhead_course,Innisbrook Resort Copperhead Course,,PGA Tour,unknown,True,True,True,18,14,byo_csv,missing,partial similarity coverage: 14/18 holes
+la_quinta_country_club,La Quinta Country Club,,PGA Tour,unknown,True,True,True,18,16,byo_csv,missing,partial similarity coverage: 16/18 holes
+memorial_park_golf_course,Memorial Park Golf Course,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+muirfield_village_golf_club,Muirfield Village Golf Club,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+pebble_beach_golf_links,Pebble Beach Golf Links,,PGA Tour,unknown,True,True,True,18,15,byo_csv,missing,partial similarity coverage: 15/18 holes
+pga_national_champion_course,Pga National Champion Course,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+pga_west_nicklaus_tournament_course,PGA WEST Nicklaus Tournament Course,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+pga_west_stadium_course,PGA WEST Pete Dye Stadium Course,,PGA Tour,unknown,True,True,True,18,15,byo_csv,missing,partial similarity coverage: 15/18 holes
+plantation_course_kapalua,Plantation Course Kapalua,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+puntacana_corales_golf_course,Puntacana Corales Golf Course,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+quail_hollow_club,Quail Hollow Club,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+renaissance_club,The Renaissance Club,,PGA Tour,unknown,True,True,True,18,6,byo_csv,missing,partial similarity coverage: 6/18 holes
+riviera_country_club,The Riviera Country Club,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+royal_birkdale_golf_club,Royal Birkdale Golf Club,,PGA Tour,unknown,True,True,True,18,14,byo_csv,missing,partial similarity coverage: 14/18 holes
+sedgefield_country_club,Sedgefield Country Club,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+shinnecock_hills_golf_club,Shinnecock Hills Golf Club,,PGA Tour,unknown,True,True,True,18,15,byo_csv,missing,partial similarity coverage: 15/18 holes
+spyglass_hill_golf_course,Spyglass Hill Golf Course,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+torrey_pines_north_course,Torrey Pines Golf Course North Course,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+torrey_pines_south_course,Torrey Pines Golf Course South Course,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+tpc_craig_ranch,Tpc Craig Ranch,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+tpc_deere_run,TPC Deere Run,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+tpc_louisiana,Tpc Louisiana,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+tpc_river_highlands,TPC River Highlands,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+tpc_san_antonio_oaks_course,TPC San Antonio Oaks Course,,PGA Tour,unknown,True,True,True,18,16,byo_csv,missing,partial similarity coverage: 16/18 holes
+tpc_sawgrass_stadium_course,TPC Sawgrass THE PLAYERS Stadium Course,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+tpc_scottsdale_stadium_course,TPC Scottsdale Stadium Course,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+tpc_southwind,TPC Southwind,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,
+tpc_toronto_osprey_valley_north,Tpc Toronto Osprey Valley North,,PGA Tour,unknown,False,True,False,18,0,byo_csv,unsupported,no v2.5 similarity outputs (geometry only)
+tpc_twin_cities,TPC Twin Cities,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+trump_national_doral_blue_monster,Trump National Doral Blue Monster,,PGA Tour,unknown,True,True,True,18,17,byo_csv,missing,partial similarity coverage: 17/18 holes
+waialae_country_club,Waialae Country Club,,PGA Tour,unknown,True,True,True,18,18,byo_csv,missing,

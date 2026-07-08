@@ -65,6 +65,9 @@ Links:
 - Error analysis & insight reports:
   [`docs/player_course_advantage_insight_reports.md`](../../../docs/player_course_advantage_insight_reports.md)
   (`error_analysis.py`, `insight_report.py`)
+- Annual course target universe & data plan:
+  [`docs/player_course_advantage_annual_course_data_plan.md`](../../../docs/player_course_advantage_annual_course_data_plan.md)
+  (`course_targets.py`, `templates/annual_course_targets.example.csv`)
 - Input contract + validation: [`schema.py`](schema.py)
   (`validate_hole_score_history`, `AdvantageParams`, `DEFAULT_PARAMS`,
   `field_adjusted_advantage`).

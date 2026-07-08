@@ -68,15 +68,19 @@ courses/
 *.parquet
 *.duckdb
 
-# ---- Player-course advantage generated outputs (rankings / backtests) ----
-data/player_course_advantage/
-
-# ---- Private bring-your-own real hole-score data (never commit) ----
-# Canonical output lives under the ignored data/player_course_advantage/private/.
+# ---- Player-course advantage generated outputs (never commit) ----
+# Ignore everything under data/player_course_advantage/ (rankings, backtests,
+# analysis_runs/, private/raw|normalized|course_aliases|coverage|logs) ...
+data/player_course_advantage/*
 data/player_course_advantage/private/
+data/player_course_advantage/analysis_runs/
+# defensive filename guards for real data placed anywhere
 **/normalized_history*.csv
 **/*raw_hole_scores*.csv
 **/course_aliases*.csv
+# ... but DO commit the checked-in templates (docs/examples, no real data).
+!data/player_course_advantage/templates/
+!data/player_course_advantage/templates/**
 
 # ---- Hugging Face export folders (built locally, uploaded manually) ----
 hf_artifact/
