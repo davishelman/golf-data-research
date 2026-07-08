@@ -380,7 +380,9 @@ Intentionally **not** implemented yet (guards issue scope):
 - **Parameter sweeps** (#36) — tuning `n` / `W` / `m` / coverage on real results.
 - Any **real PGA data** sourcing/scraping — planned and blocker-documented in
   [`player_course_advantage_data_sourcing.md`](player_course_advantage_data_sourcing.md) (#46).
-- Wiring into the Streamlit demo or the HF artifact.
+- Wiring into the Streamlit demo or the HF artifact — planned in
+  [`player_course_advantage_ui_plan.md`](player_course_advantage_ui_plan.md) (#40);
+  ranking view implementation is #47.
 
 ## Open questions
 

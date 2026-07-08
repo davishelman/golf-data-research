@@ -38,6 +38,9 @@ Built so far — the **backtest remains deferred**:
   ([`notebooks/player_course_advantage_backtest.ipynb`](../../../notebooks/player_course_advantage_backtest.ipynb)):
   offline, synthetic-labelled walkthrough of the whole pipeline (scorer →
   ranking → diagnostics → backtest → baselines → sweep).
+- **#40** — Streamlit UI integration plan
+  ([`docs/player_course_advantage_ui_plan.md`](../../../docs/player_course_advantage_ui_plan.md)):
+  how the advantage view is added as an additive tab (implementation is #47).
 
 Links:
 
