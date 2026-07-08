@@ -34,6 +34,10 @@ Built so far — the **backtest remains deferred**:
   ([`docs/player_course_advantage_data_sourcing.md`](../../../docs/player_course_advantage_data_sourcing.md)):
   sources, ID mapping, normalization path, and the **blocker** — no real per-hole
   data is wired yet, so all numbers remain synthetic.
+- **#37** — evaluation notebook
+  ([`notebooks/player_course_advantage_backtest.ipynb`](../../../notebooks/player_course_advantage_backtest.ipynb)):
+  offline, synthetic-labelled walkthrough of the whole pipeline (scorer →
+  ranking → diagnostics → backtest → baselines → sweep).
 
 Links:
 
