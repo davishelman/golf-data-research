@@ -179,6 +179,17 @@ from .variants import (  # noqa: E402
     shrink_by_count,
     shrink_toward_zero,
 )
+from .error_analysis import (  # noqa: E402
+    build_error_analysis,
+    identify_failure_modes,
+    performance_by,
+    render_failure_modes,
+)
+from .insight_report import (  # noqa: E402
+    insight_verdict,
+    load_and_render,
+    render_insight_report,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -300,4 +311,13 @@ __all__ = [
     "compare_variants",
     "select_blend_alpha",
     "render_variant_summary",
+    # error analysis (#75)
+    "performance_by",
+    "identify_failure_modes",
+    "build_error_analysis",
+    "render_failure_modes",
+    # insight report (#76)
+    "insight_verdict",
+    "render_insight_report",
+    "load_and_render",
 ]
