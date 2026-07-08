@@ -198,6 +198,14 @@ from .course_targets import (  # noqa: E402
     supported_targets,
     targets_by_status,
 )
+from .acquisition import (  # noqa: E402
+    SOURCE_MODES,
+    AcquisitionError,
+    AcquisitionResult,
+    find_course_raw_file,
+    import_annual_courses,
+    resolve_sources,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -335,4 +343,11 @@ __all__ = [
     "supported_targets",
     "targets_by_status",
     "build_targets_from_assets",
+    # annual course acquisition / import (#81)
+    "SOURCE_MODES",
+    "AcquisitionError",
+    "AcquisitionResult",
+    "resolve_sources",
+    "find_course_raw_file",
+    "import_annual_courses",
 ]

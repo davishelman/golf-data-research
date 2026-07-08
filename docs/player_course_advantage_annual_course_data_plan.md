@@ -79,5 +79,44 @@ python scripts/run_player_course_advantage_real_analysis.py \
     --output data/player_course_advantage/analysis_runs/augusta_2026 --data-source real
 ```
 
-Acquisition tooling that scales this to the whole annual universe is #81; the
-batch runner across all covered courses is #82.
+## Annual acquisition / import (#81)
+
+Templates (committed): `templates/raw_hole_scores_template.csv`,
+`templates/event_outcomes_template.csv`, `templates/course_aliases_template.csv`.
+
+Source modes (priority): **byo_csv** (a directory of `<course_slug>.csv` raw
+exports), **api_export** (paid/API — only if creds present; `DATA_GOLF_API_KEY`,
+`SHOTLINK_EXPORT_PATH`, `PGA_SCORECARD_RAW_DIR` — secrets are never stored),
+**manual_scorecard**, and **audit** (report only). Missing creds/data → a status
+report, never a crash.
+
+**Audit availability:**
+
+```bash
+python scripts/acquire_annual_course_hole_scores.py \
+    --manifest data/player_course_advantage/templates/annual_course_targets.example.csv \
+    --raw-dir data/player_course_advantage/private/raw \
+    --outcomes data/player_course_advantage/private/raw/event_outcomes.csv \
+    --output data/player_course_advantage/private/coverage
+```
+
+**Import + normalize + validate all supported courses:**
+
+```bash
+python scripts/import_annual_course_hole_scores.py \
+    --manifest data/player_course_advantage/templates/annual_course_targets.example.csv \
+    --raw-dir data/player_course_advantage/private/raw \
+    --aliases data/player_course_advantage/private/course_aliases/aliases.csv \
+    --outcomes data/player_course_advantage/private/raw/event_outcomes.csv \
+    --output data/player_course_advantage/private
+```
+
+Each supported course is classified **ready** (normalized history + event
+outcomes), **partial** (normalized but outcomes missing → backtest blocked, or a
+mapping/validation failure), **missing** (no raw file), or **unsupported**.
+Private outputs (gitignored): `private/coverage/annual_course_data_status.csv`,
+`private/normalized/<slug>_history.csv`,
+`private/normalized/all_supported_annual_courses_history.csv`,
+`private/logs/import_report.md`.
+
+The batch runner across all covered courses is #82.
