@@ -124,6 +124,19 @@ from .data_health import (  # noqa: E402
     summarize_history_quality,
     summarize_similarity_coverage,
 )
+from .ablation import (  # noqa: E402
+    ablation_effects,
+    baseline_lift_summary,
+    baseline_lift_table,
+    rank_ablation,
+)
+from .evaluation import (  # noqa: E402
+    build_evaluation_summary,
+    export_evaluation_report,
+    make_metrics_manifest,
+    render_evaluation_markdown,
+    summarize_per_event_metrics,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -197,4 +210,15 @@ __all__ = [
     "summarize_backtest_coverage",
     "build_data_health_report",
     "data_health_to_frames",
+    # baseline lift & ablation (#60)
+    "baseline_lift_table",
+    "baseline_lift_summary",
+    "rank_ablation",
+    "ablation_effects",
+    # evaluation report generator (#59)
+    "build_evaluation_summary",
+    "summarize_per_event_metrics",
+    "make_metrics_manifest",
+    "render_evaluation_markdown",
+    "export_evaluation_report",
 ]

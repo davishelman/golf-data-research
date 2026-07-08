@@ -76,6 +76,13 @@ Links:
   (`build_data_health_report`, `summarize_history_quality`,
   `summarize_similarity_coverage`, `summarize_backtest_coverage`) — input
   completeness/coverage, run *before* an expensive backtest.
+- Evaluation report: [`evaluation.py`](evaluation.py)
+  (`build_evaluation_summary`, `render_evaluation_markdown`,
+  `export_evaluation_report`) — turns backtest/baseline/sweep/coverage into hard
+  metrics tables. See the [metrics contract](../../../docs/player_course_advantage_metrics.md) (#58).
+- Baseline lift & ablation: [`ablation.py`](ablation.py)
+  (`baseline_lift_summary`, `baseline_lift_table`, `rank_ablation`,
+  `ablation_effects`) — strict wins, NaN-safe; what helped/hurt.
 
 ## Similar-hole loader (#32)
 
