@@ -53,6 +53,9 @@ Links:
   [`docs/player_course_advantage_metrics.md`](../../../docs/player_course_advantage_metrics.md)
 - Running the (synthetic) analysis bundle:
   [`docs/player_course_advantage_analysis.md`](../../../docs/player_course_advantage_analysis.md)
+- Ingesting real per-hole scores (bring-your-own):
+  [`docs/player_course_advantage_real_data_ingestion.md`](../../../docs/player_course_advantage_real_data_ingestion.md)
+  (`ingestion.py`, `identity.py`, `scripts/normalize_player_hole_scores.py`)
 - Input contract + validation: [`schema.py`](schema.py)
   (`validate_hole_score_history`, `AdvantageParams`, `DEFAULT_PARAMS`,
   `field_adjusted_advantage`).
