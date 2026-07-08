@@ -1,0 +1,7 @@
+player_id,player_name,tournament_id,tournament_name,year,round,course_slug,hole_number,hole_id_v25,hole_id_v2,par,player_score,field_avg_score,field_adjusted_score,made_cut
+p001,Alice Synthetic,t_syn_open,Synthetic Open,2023,1,augusta_national,1,augusta_national:1,augusta_national__01,4,4,4.2,0.2,True
+p001,Alice Synthetic,t_syn_open,Synthetic Open,2023,1,augusta_national,2,augusta_national:2,augusta_national__02,3,3,3.4,0.4,True
+p002,Bob Synthetic,t_syn_open,Synthetic Open,2023,1,augusta_national,1,augusta_national:1,augusta_national__01,4,5,4.2,-0.8,True
+p002,Bob Synthetic,t_syn_open,Synthetic Open,2023,1,augusta_national,2,augusta_national:2,augusta_national__02,3,3,3.4,0.4,True
+p003,Cora Synthetic,t_syn_open,Synthetic Open,2023,1,pebble_beach_golf_links,7,pebble_beach_golf_links:7,pebble_beach_golf_links__07,3,2,3.1,1.1,True
+p003,Cora Synthetic,t_syn_open,Synthetic Open,2023,1,pebble_beach_golf_links,8,pebble_beach_golf_links:8,pebble_beach_golf_links__08,4,4,4.3,0.3,True
