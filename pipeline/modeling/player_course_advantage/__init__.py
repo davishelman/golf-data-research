@@ -31,6 +31,8 @@ Layout (the scorer and backtest remain deferred):
   events (:func:`.backtest.run_backtest`).
 * :mod:`.baselines` — simple comparison baselines with the model's ranker shape
   (:func:`.baselines.compare_baselines`).
+* :mod:`.sweep` — reproducible parameter sweep around the backtest
+  (:func:`.sweep.run_sweep`, :class:`.sweep.SweepGrid`).
 
 Nothing here depends on real PGA data, streamlit, or the geometry/DEM stack.
 """
@@ -108,6 +110,13 @@ from .baselines import (  # noqa: E402
     compare_baselines,
     model_beats_baselines,
 )
+from .sweep import (  # noqa: E402
+    SweepGrid,
+    SweepResult,
+    export_sweep,
+    iter_param_sets,
+    run_sweep,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -169,4 +178,10 @@ __all__ = [
     "BASELINES",
     "compare_baselines",
     "model_beats_baselines",
+    # parameter sweep (#36)
+    "SweepGrid",
+    "SweepResult",
+    "iter_param_sets",
+    "run_sweep",
+    "export_sweep",
 ]
