@@ -56,6 +56,12 @@ Links:
 - Ingesting real per-hole scores (bring-your-own):
   [`docs/player_course_advantage_real_data_ingestion.md`](../../../docs/player_course_advantage_real_data_ingestion.md)
   (`ingestion.py`, `identity.py`, `scripts/normalize_player_hole_scores.py`)
+- Real-data analysis runner:
+  [`docs/player_course_advantage_real_analysis.md`](../../../docs/player_course_advantage_real_analysis.md)
+  (`real_analysis.py`, `scripts/run_player_course_advantage_real_analysis.py`)
+- Optimization & variants:
+  [`docs/player_course_advantage_optimization.md`](../../../docs/player_course_advantage_optimization.md)
+  (`optimization.py`, `variants.py`, `scripts/optimize_player_course_advantage_params.py`)
 - Input contract + validation: [`schema.py`](schema.py)
   (`validate_hole_score_history`, `AdvantageParams`, `DEFAULT_PARAMS`,
   `field_adjusted_advantage`).
