@@ -117,6 +117,13 @@ from .sweep import (  # noqa: E402
     iter_param_sets,
     run_sweep,
 )
+from .data_health import (  # noqa: E402
+    build_data_health_report,
+    data_health_to_frames,
+    summarize_backtest_coverage,
+    summarize_history_quality,
+    summarize_similarity_coverage,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -184,4 +191,10 @@ __all__ = [
     "iter_param_sets",
     "run_sweep",
     "export_sweep",
+    # data health report (#62)
+    "summarize_history_quality",
+    "summarize_similarity_coverage",
+    "summarize_backtest_coverage",
+    "build_data_health_report",
+    "data_health_to_frames",
 ]
