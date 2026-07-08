@@ -49,6 +49,8 @@ Links:
 
 - Full spec, notation, formulas, defaults, leakage warnings:
   [`docs/player_course_advantage.md`](../../../docs/player_course_advantage.md)
+- Metrics contract + acceptance gates:
+  [`docs/player_course_advantage_metrics.md`](../../../docs/player_course_advantage_metrics.md)
 - Input contract + validation: [`schema.py`](schema.py)
   (`validate_hole_score_history`, `AdvantageParams`, `DEFAULT_PARAMS`,
   `field_adjusted_advantage`).
