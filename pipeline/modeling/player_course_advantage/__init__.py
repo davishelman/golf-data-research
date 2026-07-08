@@ -190,6 +190,14 @@ from .insight_report import (  # noqa: E402
     load_and_render,
     render_insight_report,
 )
+from .course_targets import (  # noqa: E402
+    COURSE_TARGET_COLUMNS,
+    CourseTargetError,
+    build_targets_from_assets,
+    load_course_targets,
+    supported_targets,
+    targets_by_status,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -320,4 +328,11 @@ __all__ = [
     "insight_verdict",
     "render_insight_report",
     "load_and_render",
+    # annual course target manifest (#80)
+    "COURSE_TARGET_COLUMNS",
+    "CourseTargetError",
+    "load_course_targets",
+    "supported_targets",
+    "targets_by_status",
+    "build_targets_from_assets",
 ]
