@@ -73,7 +73,11 @@ def player_hole_detail(
                             "low_coverage", "reason") if c in sub.columns]
         per_hole = sub[keep].reset_index(drop=True)
         if "hole_advantage" in per_hole.columns:
-            per_hole["hole_advantage"] = per_hole["hole_advantage"].round(3)
+            # A fully low-coverage player's advantage column is all-None (object
+            # dtype); pandas>=2.3 raises on Series.round of object, so coerce first.
+            per_hole["hole_advantage"] = pd.to_numeric(
+                per_hole["hole_advantage"], errors="coerce"
+            ).round(3)
 
     top_similar = pd.DataFrame()
     if not diagnostics.empty and "player_id" in diagnostics.columns:
@@ -84,7 +88,11 @@ def player_hole_detail(
             ).head(top_n)
             keep = [c for c in ("target_hole_id", "candidate_hole_id",
                                 "weighted_contribution") if c in d.columns]
-            top_similar = d[keep].round(3).reset_index(drop=True)
+            top_similar = d[keep].reset_index(drop=True)
+            # Round only the numeric column (the id columns are strings).
+            top_similar["weighted_contribution"] = pd.to_numeric(
+                top_similar["weighted_contribution"], errors="coerce"
+            ).round(3)
 
     return {"per_hole": per_hole, "top_similar": top_similar}
 

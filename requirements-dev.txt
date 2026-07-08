@@ -1,0 +1,15 @@
+# Test & notebook tooling for golf-data-research.
+#
+#     pip install -r requirements-dev.txt
+#
+# Pulls in all runtime deps, then the tooling needed to run the test suite and
+# execute the evaluation notebook offline.
+
+-r requirements.txt
+
+pytest>=7.4
+
+# For executing notebooks/player_course_advantage_backtest.ipynb (jupyter nbconvert --execute):
+nbformat>=5.9
+nbconvert>=7.0
+ipykernel>=6.25
