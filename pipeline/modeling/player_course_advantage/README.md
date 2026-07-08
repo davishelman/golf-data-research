@@ -83,6 +83,13 @@ Links:
 - Baseline lift & ablation: [`ablation.py`](ablation.py)
   (`baseline_lift_summary`, `baseline_lift_table`, `rank_ablation`,
   `ablation_effects`) — strict wins, NaN-safe; what helped/hurt.
+- Calibration & reliability: [`calibration.py`](calibration.py)
+  (`calibration_table`, `monotonicity_score`, `calibration_slope`,
+  `reliability_by_coverage`) — do bigger advantages mean better outcomes?
+- Runtime/scalability benchmarks: [`benchmarks.py`](benchmarks.py) +
+  [`scripts/benchmark_player_course_advantage.py`](../../../scripts/benchmark_player_course_advantage.py)
+  (`run_benchmarks`, `benchmark_components`, `export_benchmarks`). Run:
+  `python scripts/benchmark_player_course_advantage.py --field-sizes 10 50 150 --out bench.csv`.
 
 ## Similar-hole loader (#32)
 
