@@ -30,6 +30,10 @@ Built so far — the **backtest remains deferred**:
   side-by-side backtest comparison.
 - **#36** — parameter sweep (`sweep.py`): reproducible grid search around the
   backtest with train/validation split logic.
+- **#46** — historical data sourcing plan
+  ([`docs/player_course_advantage_data_sourcing.md`](../../../docs/player_course_advantage_data_sourcing.md)):
+  sources, ID mapping, normalization path, and the **blocker** — no real per-hole
+  data is wired yet, so all numbers remain synthetic.
 
 Links:
 

@@ -378,7 +378,8 @@ Intentionally **not** implemented yet (guards issue scope):
 - **Batch tournament-field ranking** (#34) — scoring a whole field at once.
 - **Backtesting** / walk-forward evaluation (#35).
 - **Parameter sweeps** (#36) — tuning `n` / `W` / `m` / coverage on real results.
-- Any **real PGA data** sourcing/scraping.
+- Any **real PGA data** sourcing/scraping — planned and blocker-documented in
+  [`player_course_advantage_data_sourcing.md`](player_course_advantage_data_sourcing.md) (#46).
 - Wiring into the Streamlit demo or the HF artifact.
 
 ## Open questions
