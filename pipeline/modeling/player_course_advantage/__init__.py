@@ -163,6 +163,22 @@ from .ingestion import (  # noqa: E402
     normalize_and_validate,
     normalize_hole_scores,
 )
+from .real_analysis import run_real_analysis  # noqa: E402
+from .optimization import (  # noqa: E402
+    OptimizationError,
+    OptimizationResult,
+    export_optimization,
+    optimize_parameters,
+)
+from .variants import (  # noqa: E402
+    blend,
+    compare_variants,
+    default_variants,
+    render_variant_summary,
+    select_blend_alpha,
+    shrink_by_count,
+    shrink_toward_zero,
+)
 
 __all__ = [
     "MODEL_VERSION",
@@ -269,4 +285,19 @@ __all__ = [
     "compute_field_avg_scores",
     "normalize_hole_scores",
     "normalize_and_validate",
+    # real-data analysis runner (#72)
+    "run_real_analysis",
+    # validation-split optimizer (#73)
+    "OptimizationError",
+    "OptimizationResult",
+    "optimize_parameters",
+    "export_optimization",
+    # shrinkage / ensemble variants (#74)
+    "shrink_toward_zero",
+    "shrink_by_count",
+    "blend",
+    "default_variants",
+    "compare_variants",
+    "select_blend_alpha",
+    "render_variant_summary",
 ]
