@@ -1,0 +1,31 @@
+# Runtime dependencies for golf-data-research.
+#
+# Quick start (tests + player-course advantage analysis):
+#     pip install -r requirements-dev.txt
+#
+# The player-course advantage stack + its test suite need only the "core data"
+# and "plotting" sections below (numpy, pandas, matplotlib) plus pytest from
+# requirements-dev.txt. The geometry/DEM and app sections are needed only for the
+# v2/v2.5 similarity pipeline and the Streamlit demo, respectively.
+#
+# Version floors are conservative; the code is exercised on numpy 2.x / pandas
+# 2.2–2.3. Pin exact versions downstream if you need reproducible builds.
+
+# --- core data / numerics (required everywhere) ---
+numpy>=1.26
+pandas>=2.0
+pyyaml>=6.0
+
+# --- plotting (visual_compare, demo tables) ---
+matplotlib>=3.7
+
+# --- geometry / DEM stack (v2 & v2.5 similarity pipeline only) ---
+# On Windows these can be easier to install via conda-forge (GDAL/PROJ wheels).
+shapely>=2.0
+pyproj>=3.5
+rasterio>=1.3
+geopandas>=0.14
+
+# --- demo app / artifact download (Streamlit UI + Hugging Face artifact) ---
+streamlit>=1.30
+huggingface_hub>=0.20
