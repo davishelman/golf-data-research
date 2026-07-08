@@ -74,6 +74,10 @@ Links:
 - Streamlit view helpers: [`ui.py`](ui.py)
   (`synthetic_demo_view`, `load_ranking_view`, `discover_advantage_runs`,
   `format_ranking_for_display`) — pure, drives `app.py` section 7.
+- Data health report: [`data_health.py`](data_health.py)
+  (`build_data_health_report`, `summarize_history_quality`,
+  `summarize_similarity_coverage`, `summarize_backtest_coverage`) — input
+  completeness/coverage, run *before* an expensive backtest.
 
 ## Similar-hole loader (#32)
 
