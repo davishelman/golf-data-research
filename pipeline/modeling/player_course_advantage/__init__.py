@@ -206,6 +206,7 @@ from .acquisition import (  # noqa: E402
     import_annual_courses,
     resolve_sources,
 )
+from .annual_analysis import run_annual_analysis  # noqa: E402
 
 __all__ = [
     "MODEL_VERSION",
@@ -350,4 +351,6 @@ __all__ = [
     "resolve_sources",
     "find_course_raw_file",
     "import_annual_courses",
+    # batch annual real-analysis runner (#82)
+    "run_annual_analysis",
 ]

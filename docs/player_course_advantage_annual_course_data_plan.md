@@ -119,4 +119,32 @@ Private outputs (gitignored): `private/coverage/annual_course_data_status.csv`,
 `private/normalized/all_supported_annual_courses_history.csv`,
 `private/logs/import_report.md`.
 
-The batch runner across all covered courses is #82.
+## Batch annual analysis (#82)
+
+Once histories + outcomes are imported, evaluate **every covered course at once**:
+
+```bash
+python scripts/run_annual_course_real_analysis.py \
+    --manifest data/player_course_advantage/templates/annual_course_targets.example.csv \
+    --history data/player_course_advantage/private/normalized/all_supported_annual_courses_history.csv \
+    --outcomes data/player_course_advantage/private/raw/event_outcomes.csv \
+    --similar-holes courses/_index \
+    --output data/player_course_advantage/analysis_runs/annual_2026 \
+    --data-source real --run-sweep
+```
+
+Per supported course with data it runs the full pipeline (validate → data-health →
+backtest → baselines → optional sweep → calibration → error analysis) via the #72
+runner, then aggregates into `analysis_runs/annual_<ts>/`:
+`annual_analysis_manifest.json`, `annual_course_status.csv`,
+`annual_data_health_summary.csv`, `annual_model_metrics.csv`,
+`annual_baseline_comparison.csv`, `annual_optimization_summary.csv` (if `--run-sweep`),
+`annual_calibration_summary.csv`, `annual_error_analysis_summary.csv`,
+`annual_insight_report.md`, `per_course/<slug>/…`, `missing_outputs.json`.
+
+Courses are classified `evaluated` / `no_event_outcomes` / `no_similarity` /
+`low_coverage` / `validation_failed` / `unsupported`. The aggregate report answers:
+which courses have enough data, which lack scores/outcomes, where the model beats
+or loses to baselines, whether higher advantage tracks better outcomes, and the
+failure modes. On synthetic data it makes **no** predictive claim and reports
+`Insufficient real data for reliable optimization.`
