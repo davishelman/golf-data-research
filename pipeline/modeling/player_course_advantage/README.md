@@ -41,6 +41,9 @@ Built so far — the **backtest remains deferred**:
 - **#40** — Streamlit UI integration plan
   ([`docs/player_course_advantage_ui_plan.md`](../../../docs/player_course_advantage_ui_plan.md)):
   how the advantage view is added as an additive tab (implementation is #47).
+- **#47** — Streamlit ranking view (`ui.py` + additive section 7 in `app.py`):
+  rankings, coverage badges, and per-hole contribution detail from artifacts or a
+  synthetic demo. Streamlit-free helpers keep it testable.
 
 Links:
 
@@ -66,6 +69,9 @@ Links:
   (`compare_baselines`, `model_beats_baselines`, `BASELINES`).
 - Parameter sweep: [`sweep.py`](sweep.py)
   (`run_sweep`, `SweepGrid`, `SweepResult.recommend`, `export_sweep`).
+- Streamlit view helpers: [`ui.py`](ui.py)
+  (`synthetic_demo_view`, `load_ranking_view`, `discover_advantage_runs`,
+  `format_ranking_for_display`) — pure, drives `app.py` section 7.
 
 ## Similar-hole loader (#32)
 

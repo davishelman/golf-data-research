@@ -116,3 +116,5 @@ def test_app_renders_without_exception():
     assert "Selected hole" in headers
     # v2 section is always present; v2.5 section present whenever results exist.
     assert "v2" in headers
+    # The additive player-course advantage section always renders its header.
+    assert "Player-course advantage" in headers
