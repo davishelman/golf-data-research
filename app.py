@@ -32,6 +32,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # import pipeline from repo root
 from pipeline.modeling import demo_utils as du
 from pipeline.modeling.pointcloud import demo as pcdemo
+from pipeline.modeling.player_course_advantage import ui as pcaui
 from pipeline.modeling.visual_compare import available_compact_ids, plot_hole_comparison
 
 st.set_page_config(page_title="Golf Hole Similarity Explorer", layout="wide")
@@ -307,7 +308,52 @@ if _pc_configs and len(_pc_configs) > 1:
                "— e.g. hazard-heavy re-weights bunkers/water — not a broken one.")
 
 # --------------------------------------------------------------------------- #
-# 7. Dataset summary
+# 7. Player-course advantage (additive — the similarity views above are unchanged)
+# --------------------------------------------------------------------------- #
+st.subheader("7. Player-course advantage (experimental)")
+st.caption("A different question from similarity: given v2.5's similar holes, how much "
+           "edge does a *player* have on a course? Experimental & uncalibrated — this is "
+           "**not** a predictive claim.")
+
+_adv_runs = pcaui.discover_advantage_runs([root_str, art.get("root"), "data/player_course_advantage"])
+if _adv_runs:
+    _sel = st.selectbox("Advantage run", _adv_runs, format_func=lambda p: p.name)
+    _adv = pcaui.load_ranking_view(_sel)
+elif st.checkbox("Show synthetic demo (no real hole-score data is bundled)", value=False):
+    _adv = pcaui.synthetic_demo_view()
+else:
+    _adv = None
+    st.info("No player-course advantage artifacts found. Generate a run with "
+            "`export_advantage_run(...)`, or enable the synthetic demo above. No real "
+            "per-hole scoring data is bundled — see "
+            "`docs/player_course_advantage_data_sourcing.md`.")
+
+if _adv is not None:
+    _src = _adv["data_source"]
+    if _src == "SYNTHETIC":
+        st.warning("Data source: **SYNTHETIC** — illustrative only, not evidence of "
+                   "predictive validity.")
+    else:
+        st.caption(f"Data source: {_src}  ·  run `{_adv['manifest'].get('run_id', '—')}`")
+    st.dataframe(_adv["ranking_display"], width="stretch", hide_index=True)
+    st.caption("Low-coverage players are withheld (never scored 0) and labelled in the "
+               "coverage column.")
+
+    _rank_disp = _adv["ranking_display"]
+    _players = _rank_disp["player_id"].tolist() if not _rank_disp.empty else []
+    if _players:
+        _who = st.selectbox("Per-hole detail for player", _players)
+        _detail = pcaui.player_hole_detail(_adv["hole_details"], _adv["diagnostics"], _who)
+        _c1, _c2 = st.columns(2)
+        with _c1:
+            st.markdown("**Per-hole advantage**")
+            st.dataframe(_detail["per_hole"], width="stretch", hide_index=True)
+        with _c2:
+            st.markdown("**Top contributing similar holes**")
+            st.dataframe(_detail["top_similar"], width="stretch", hide_index=True)
+
+# --------------------------------------------------------------------------- #
+# Dataset summary
 # --------------------------------------------------------------------------- #
 with st.expander("Dataset summary"):
     s = du.dataset_summary(art)
