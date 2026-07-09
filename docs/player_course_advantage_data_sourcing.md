@@ -138,3 +138,39 @@ normalization target — **not** real data.
 
 Until then the model, batch ranking, backtest, baselines, and sweep all run on
 **synthetic** data and make **no** predictive-validity claim.
+
+## 11. Real-evidence sprint findings (2026-07-09, issue #86)
+
+The "real evidence sprint" (#86–#89) asked for actual real per-hole scores and
+event outcomes, ready to evaluate. Before writing any code, the environment and
+three concrete public-source candidates were checked:
+
+- **Credentials:** `DATA_GOLF_API_KEY`, `SHOTLINK_EXPORT_PATH`,
+  `PGA_SCORECARD_RAW_DIR` are all unset. No private data exists anywhere in the
+  repo or filesystem (`data/player_course_advantage/private/` does not exist).
+- **Tooling reality check:** `acquisition.py`'s `resolve_sources()` only checks
+  whether those env vars are *present* — it does **not** implement an actual
+  Data Golf or ShotLink API client. The only functionally wired source mode
+  today is **BYO CSV** (point the importer at a directory of raw exports).
+- **GitHub repo (`daronprater/PGA-Tour-Data-Science-Project`)** — its own
+  `PGAtour.com Web Scraper.ipynb` filename confirms the data was scraped from
+  pgatour.com; the repo has no `LICENSE` file granting reuse. **Disqualified**
+  (fails "public data only if terms allow use").
+- **Kaggle** (e.g. "PGA Tour Results 2001–2025") — the page is JS-rendered and
+  gated behind Kaggle's UI; no Kaggle account/API key/CLI exists in this
+  environment, so the license and hole-level granularity could not even be
+  verified, let alone downloaded. Other found Kaggle sets are round/season-level
+  stats only — insufficient granularity regardless of license.
+- **pgatour.com directly** — the hole-by-hole granularity this model needs is
+  exactly what ShotLink licenses commercially; scraping the public site would
+  violate its ToS (same problem as the GitHub repo above), and no scraping
+  infrastructure exists in this repo.
+
+**Conclusion:** there is no ToS-compliant, directly-downloadable, hole-by-hole
+real PGA dataset accessible with the tools/credentials available. This is a
+**documented access blocker**, not a missing-effort gap — the fastest real path
+forward is a human providing either (a) a real raw per-hole CSV + event outcomes
+placed under `data/player_course_advantage/private/raw/` (BYO CSV, already fully
+wired), or (b) credentials for a licensed source (Data Golf API / ShotLink),
+which would additionally require building the actual API client that
+`acquisition.py` currently only stubs the presence-check for.
